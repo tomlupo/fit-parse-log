@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Trash2, Clock, Calendar, Target } from 'lucide-react';
-import { ParsedExercise } from './ExerciseForm';
+import { ParsedExercise } from '@/lib/exerciseParser';
 
 interface WorkoutSessionProps {
   exercises: ParsedExercise[];
@@ -57,11 +57,15 @@ export function WorkoutSession({ exercises, onRemoveExercise, onClearSession }: 
               </Badge>
             )}
             
-            {parsedData.weight && (
+            {parsedData.progressiveWeights && parsedData.progressiveWeights.length > 0 ? (
+              <Badge variant="weight">
+                {parsedData.progressiveWeights.join(' → ')}
+              </Badge>
+            ) : parsedData.weight ? (
               <Badge variant="weight">
                 {parsedData.weight}
               </Badge>
-            )}
+            ) : null}
             
             {parsedData.time && (
               <Badge variant="time">
@@ -72,6 +76,12 @@ export function WorkoutSession({ exercises, onRemoveExercise, onClearSession }: 
             {parsedData.distance && (
               <Badge variant="time">
                 {parsedData.distance}
+              </Badge>
+            )}
+            
+            {parsedData.restPeriod && (
+              <Badge variant="secondary">
+                Rest: {parsedData.restPeriod}
               </Badge>
             )}
           </div>

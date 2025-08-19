@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { ExerciseForm, ParsedExercise } from '@/components/ExerciseForm';
+import { ExerciseForm } from '@/components/ExerciseForm';
+import { ParsedExercise } from '@/lib/exerciseParser';
 import { WorkoutSession } from '@/components/WorkoutSession';
 import { WorkoutHeader } from '@/components/WorkoutHeader';
 import { useToast } from '@/hooks/use-toast';

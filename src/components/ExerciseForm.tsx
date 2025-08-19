@@ -4,21 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Dumbbell } from 'lucide-react';
-
-export interface ParsedExercise {
-  id: string;
-  name: string;
-  originalInput: string;
-  parsedData: {
-    sets?: number;
-    reps?: number;
-    weight?: string;
-    time?: string;
-    distance?: string;
-    type: 'strength' | 'cardio' | 'time' | 'unknown';
-  };
-  timestamp: Date;
-}
+import { parseExerciseParameters, ParsedExercise } from '@/lib/exerciseParser';
 
 interface ExerciseFormProps {
   onAddExercise: (exercise: ParsedExercise) => void;
@@ -28,79 +14,6 @@ export function ExerciseForm({ onAddExercise }: ExerciseFormProps) {
   const [exerciseName, setExerciseName] = useState('');
   const [exerciseParams, setExerciseParams] = useState('');
   const [preview, setPreview] = useState<ParsedExercise | null>(null);
-
-  const parseExerciseParameters = (input: string): ParsedExercise['parsedData'] => {
-    const cleanInput = input.toLowerCase().trim();
-    
-    // Pattern for sets x reps @ weight (e.g., "3x10 @ 135lbs", "4 x 8 @ 185")
-    const strengthPattern = /(\d+)\s*x\s*(\d+)(?:\s*@\s*(\d+(?:\.\d+)?)\s*(lbs?|kg|pounds?))?/i;
-    
-    // Pattern for time (e.g., "30 seconds", "5 minutes", "1:30", "2.5 min")
-    const timePattern = /(\d+(?:\.\d+)?)\s*(seconds?|secs?|minutes?|mins?|hours?|hrs?)|(\d+):(\d+)/i;
-    
-    // Pattern for distance (e.g., "2 miles", "5km", "100m")
-    const distancePattern = /(\d+(?:\.\d+)?)\s*(miles?|km|kilometers?|meters?|m|yards?|yds?)/i;
-    
-    // Pattern for just weight (e.g., "135lbs", "60kg")
-    const weightPattern = /(\d+(?:\.\d+)?)\s*(lbs?|kg|pounds?)/i;
-    
-    // Pattern for just sets x reps (e.g., "3x10", "4 x 8")
-    const setsRepsPattern = /(\d+)\s*x\s*(\d+)/i;
-
-    let type: ParsedExercise['parsedData']['type'] = 'unknown';
-    let sets, reps, weight, time, distance;
-
-    if (strengthPattern.test(cleanInput)) {
-      const match = cleanInput.match(strengthPattern);
-      if (match) {
-        sets = parseInt(match[1]);
-        reps = parseInt(match[2]);
-        if (match[3] && match[4]) {
-          weight = `${match[3]} ${match[4]}`;
-        }
-        type = 'strength';
-      }
-    } else if (timePattern.test(cleanInput)) {
-      const match = cleanInput.match(timePattern);
-      if (match) {
-        if (match[3] && match[4]) {
-          // Time in MM:SS format
-          time = `${match[3]}:${match[4]}`;
-        } else if (match[1] && match[2]) {
-          time = `${match[1]} ${match[2]}`;
-        }
-        type = 'time';
-      }
-    } else if (distancePattern.test(cleanInput)) {
-      const match = cleanInput.match(distancePattern);
-      if (match) {
-        distance = `${match[1]} ${match[2]}`;
-        type = 'cardio';
-      }
-    } else if (setsRepsPattern.test(cleanInput)) {
-      const match = cleanInput.match(setsRepsPattern);
-      if (match) {
-        sets = parseInt(match[1]);
-        reps = parseInt(match[2]);
-        type = 'strength';
-      }
-    } else if (weightPattern.test(cleanInput)) {
-      const match = cleanInput.match(weightPattern);
-      if (match) {
-        weight = `${match[1]} ${match[2]}`;
-        type = 'strength';
-      }
-    }
-
-    return {
-      sets,
-      reps,
-      weight,
-      time,
-      distance,
-      type
-    };
-  };
 
   const handleParametersChange = (value: string) => {
     setExerciseParams(value);
@@ -150,7 +63,13 @@ export function ExerciseForm({ onAddExercise }: ExerciseFormProps) {
       );
     }
     
-    if (data.weight) {
+    if (data.progressiveWeights && data.progressiveWeights.length > 0) {
+      badges.push(
+        <Badge key="progressive-weights" variant="weight">
+          {data.progressiveWeights.join(' → ')}
+        </Badge>
+      );
+    } else if (data.weight) {
       badges.push(
         <Badge key="weight" variant="weight">
           {data.weight}
@@ -170,6 +89,14 @@ export function ExerciseForm({ onAddExercise }: ExerciseFormProps) {
       badges.push(
         <Badge key="distance" variant="time">
           {data.distance}
+        </Badge>
+      );
+    }
+    
+    if (data.restPeriod) {
+      badges.push(
+        <Badge key="rest" variant="secondary">
+          Rest: {data.restPeriod}
         </Badge>
       );
     }
@@ -233,6 +160,8 @@ export function ExerciseForm({ onAddExercise }: ExerciseFormProps) {
           <div className="font-medium mb-2">Supported formats:</div>
           <div className="space-y-1">
             <div>• <code className="text-accent">3x10 @ 135lbs</code> - Sets × Reps @ Weight</div>
+            <div>• <code className="text-accent">3x10 @ 40/50/60kg</code> - Progressive weights</div>
+            <div>• <code className="text-accent">3x10 @ 135lbs rest 30s</code> - With rest period</div>
             <div>• <code className="text-accent">30 minutes</code> - Time duration</div>
             <div>• <code className="text-accent">2 miles</code> - Distance</div>
             <div>• <code className="text-accent">1:30</code> - Time in MM:SS</div>
