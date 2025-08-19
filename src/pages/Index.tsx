@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { ExerciseForm } from '@/components/ExerciseForm';
 import { ParsedExercise, WorkoutBlock } from '@/lib/exerciseParser';
 import { WorkoutSession } from '@/components/WorkoutSession';
-import { WorkoutFlow } from '@/components/WorkoutFlow';
+import { WorkoutGrid } from '@/components/WorkoutGrid';
 import { WorkoutHeader } from '@/components/WorkoutHeader';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -65,6 +65,12 @@ const Index = () => {
     ));
   };
 
+  const handleUpdateBlock = (updatedBlock: WorkoutBlock) => {
+    setBlocks(prev => prev.map(block => 
+      block.id === updatedBlock.id ? updatedBlock : block
+    ));
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8">
@@ -81,7 +87,7 @@ const Index = () => {
               </TabsTrigger>
               <TabsTrigger value="flow" className="flex items-center gap-2">
                 <Workflow className="h-4 w-4" />
-                Flow View
+                Grid View
               </TabsTrigger>
             </TabsList>
             
@@ -94,13 +100,14 @@ const Index = () => {
             </TabsContent>
             
             <TabsContent value="flow" className="flex justify-center">
-              <WorkoutFlow
+              <WorkoutGrid
                 exercises={exercises}
                 blocks={blocks}
                 onRemoveExercise={handleRemoveExercise}
-                onAddBlock={handleAddBlock}
-                onRemoveBlock={handleRemoveBlock}
                 onUpdateExercise={handleUpdateExercise}
+                onAddBlock={handleAddBlock}
+                onUpdateBlock={handleUpdateBlock}
+                onRemoveBlock={handleRemoveBlock}
               />
             </TabsContent>
           </Tabs>
