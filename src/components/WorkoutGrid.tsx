@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { ParsedExercise, WorkoutBlock } from '@/lib/exerciseParser';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -20,14 +20,6 @@ interface WorkoutGridProps {
   onRemoveBlock: (id: string) => void;
 }
 
-interface DragState {
-  isDragging: boolean;
-  draggedId: string | null;
-  dragOffset: { x: number; y: number };
-  dropTarget: string | null;
-  startTime: number;
-}
-
 export function WorkoutGrid({ 
   exercises, 
   blocks, 
@@ -38,15 +30,10 @@ export function WorkoutGrid({
   onRemoveBlock
 }: WorkoutGridProps) {
   const { toast } = useToast();
-  const [dragState, setDragState] = useState<DragState>({
-    isDragging: false,
-    draggedId: null,
-    dragOffset: { x: 0, y: 0 },
-    dropTarget: null,
-    startTime: 0
-  });
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [dragPosition, setDragPosition] = useState({ x: 0, y: 0 });
+  const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [editingBlock, setEditingBlock] = useState<WorkoutBlock | null>(null);
-  const dragRef = useRef<{ startX: number; startY: number } | null>(null);
 
   // Get exercises not in any block
   const unassignedExercises = exercises.filter(ex => !ex.blockId);
@@ -68,108 +55,62 @@ export function WorkoutGrid({
     }
   };
 
-  const handleDragStart = useCallback((e: React.MouseEvent | React.TouchEvent, itemId: string) => {
+  const handleTouchStart = useCallback((e: React.TouchEvent, itemId: string) => {
     e.preventDefault();
-    e.stopPropagation();
+    const touch = e.touches[0];
+    const rect = e.currentTarget.getBoundingClientRect();
     
-    // Prevent text selection during drag
+    setDraggedId(itemId);
+    setDragPosition({ 
+      x: rect.left, 
+      y: rect.top 
+    });
+    
+    // Prevent scrolling and text selection
+    document.body.style.overflow = 'hidden';
     document.body.style.userSelect = 'none';
     document.body.style.webkitUserSelect = 'none';
     document.body.style.touchAction = 'none';
-    
-    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-    const rect = e.currentTarget.getBoundingClientRect();
-    
-    dragRef.current = {
-      startX: clientX - rect.left,
-      startY: clientY - rect.top
-    };
-    
-    setDragState({
-      isDragging: true,
-      draggedId: itemId,
-      dragOffset: { x: rect.left, y: rect.top },
-      dropTarget: null,
-      startTime: Date.now()
-    });
   }, []);
 
-  const handleDragMove = useCallback((e: MouseEvent | TouchEvent) => {
-    if (!dragState.isDragging || !dragRef.current) return;
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!draggedId) return;
+    
+    e.preventDefault();
+    const touch = e.touches[0];
+    
+    setDragPosition({
+      x: touch.clientX - 50, // Center the card on finger
+      y: touch.clientY - 50
+    });
 
+    // Find what's under the finger
+    const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+    const dropElement = elementBelow?.closest('[data-drop-target]');
+    const targetId = dropElement?.getAttribute('data-drop-target');
+    
+    setDropTarget(targetId && targetId !== draggedId ? targetId : null);
+  }, [draggedId]);
+
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    if (!draggedId) return;
+    
     e.preventDefault();
     
-    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-
-    setDragState(prev => ({
-      ...prev,
-      dragOffset: {
-        x: clientX - dragRef.current!.startX,
-        y: clientY - dragRef.current!.startY
-      }
-    }));
-
-    // Find drop target
-    const elements = document.elementsFromPoint(clientX, clientY);
-    const dropElement = elements.find(el => 
-      el.getAttribute('data-drop-target') && 
-      el.getAttribute('data-drop-target') !== dragState.draggedId
-    );
-    
-    setDragState(prev => ({
-      ...prev,
-      dropTarget: dropElement?.getAttribute('data-drop-target') || null
-    }));
-  }, [dragState.isDragging, dragState.draggedId]);
-
-  const handleDragEnd = useCallback(() => {
-    if (!dragState.isDragging) return;
-
-    // Restore text selection
+    // Restore scrolling and text selection
+    document.body.style.overflow = '';
     document.body.style.userSelect = '';
     document.body.style.webkitUserSelect = '';
     document.body.style.touchAction = '';
 
-    const dragDuration = Date.now() - dragState.startTime;
-    
-    // Only process drop if it was a drag (not a tap) and has a drop target
-    if (dragDuration > 150 && dragState.dropTarget && dragState.draggedId && dragState.dropTarget !== dragState.draggedId) {
-      handleDrop(dragState.draggedId, dragState.dropTarget);
+    if (dropTarget && draggedId !== dropTarget) {
+      handleDrop(draggedId, dropTarget);
     }
 
-    setDragState({
-      isDragging: false,
-      draggedId: null,
-      dragOffset: { x: 0, y: 0 },
-      dropTarget: null,
-      startTime: 0
-    });
-    dragRef.current = null;
-  }, [dragState]);
-
-  React.useEffect(() => {
-    if (dragState.isDragging) {
-      // Add both mouse and touch event listeners
-      document.addEventListener('mousemove', handleDragMove);
-      document.addEventListener('mouseup', handleDragEnd);
-      document.addEventListener('touchmove', handleDragMove, { passive: false });
-      document.addEventListener('touchend', handleDragEnd);
-      document.body.style.cursor = 'grabbing';
-    }
-
-    return () => {
-      document.removeEventListener('mousemove', handleDragMove);
-      document.removeEventListener('mouseup', handleDragEnd);
-      document.removeEventListener('touchmove', handleDragMove);
-      document.removeEventListener('touchend', handleDragEnd);
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-      document.body.style.webkitUserSelect = '';
-      document.body.style.touchAction = '';
-    };
-  }, [dragState.isDragging, handleDragMove, handleDragEnd]);
+    setDraggedId(null);
+    setDropTarget(null);
+    setDragPosition({ x: 0, y: 0 });
+  }, [draggedId, dropTarget]);
 
   const handleDrop = (draggedId: string, targetId: string) => {
     const draggedExercise = exercises.find(ex => ex.id === draggedId);
@@ -291,17 +232,17 @@ export function WorkoutGrid({
 
   return (
     <>
-      <div className="w-full max-w-6xl space-y-6">
+      <div className="w-full max-w-6xl space-y-6" style={{ touchAction: 'manipulation' }}>
         {/* Blocks */}
         {blocks.map(block => {
           const blockExercises = exercises.filter(ex => ex.blockId === block.id);
-          const isDropTarget = dragState.dropTarget === block.id;
+          const isDropTarget = dropTarget === block.id;
           
           return (
             <Card 
               key={block.id}
               className={`p-4 transition-all duration-200 ${
-                isDropTarget ? 'ring-2 ring-primary scale-105' : ''
+                isDropTarget ? 'ring-2 ring-primary bg-primary/5' : ''
               }`}
               data-drop-target={block.id}
             >
@@ -334,24 +275,22 @@ export function WorkoutGrid({
               
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {blockExercises.map(exercise => {
-                  const isDragged = dragState.draggedId === exercise.id;
+                  const isDragged = draggedId === exercise.id;
                   
                   return (
                     <Card 
                       key={exercise.id}
-                      className={`select-none cursor-grab active:cursor-grabbing transition-all duration-200 ${
-                        isDragged ? 'opacity-50 scale-95 z-50' : 'hover:scale-105'
+                      className={`touch-manipulation select-none transition-all duration-200 ${
+                        isDragged ? 'opacity-30' : 'active:scale-95'
                       }`}
-                      style={isDragged ? {
-                        position: 'fixed',
-                        left: dragState.dragOffset.x,
-                        top: dragState.dragOffset.y,
-                        zIndex: 1000,
-                        pointerEvents: 'none',
-                        transform: 'rotate(5deg)'
-                      } : {}}
-                      onMouseDown={(e) => handleDragStart(e, exercise.id)}
-                      onTouchStart={(e) => handleDragStart(e, exercise.id)}
+                      style={{
+                        userSelect: 'none',
+                        WebkitUserSelect: 'none',
+                        touchAction: 'none'
+                      }}
+                      onTouchStart={(e) => handleTouchStart(e, exercise.id)}
+                      onTouchMove={handleTouchMove}
+                      onTouchEnd={handleTouchEnd}
                       data-drop-target={exercise.id}
                     >
                       <CardContent className="p-3">
@@ -388,25 +327,23 @@ export function WorkoutGrid({
             <h3 className="text-lg font-semibold">Exercises</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {unassignedExercises.map(exercise => {
-                const isDragged = dragState.draggedId === exercise.id;
-                const isDropTarget = dragState.dropTarget === exercise.id;
+                const isDragged = draggedId === exercise.id;
+                const isDropTarget = dropTarget === exercise.id;
                 
                 return (
                   <Card 
                     key={exercise.id}
-                    className={`select-none cursor-grab active:cursor-grabbing transition-all duration-200 ${
-                      isDragged ? 'opacity-50 scale-95 z-50' : ''
-                    } ${isDropTarget ? 'ring-2 ring-primary scale-105' : 'hover:scale-105'}`}
-                    style={isDragged ? {
-                      position: 'fixed',
-                      left: dragState.dragOffset.x,
-                      top: dragState.dragOffset.y,
-                      zIndex: 1000,
-                      pointerEvents: 'none',
-                      transform: 'rotate(5deg)'
-                    } : {}}
-                    onMouseDown={(e) => handleDragStart(e, exercise.id)}
-                    onTouchStart={(e) => handleDragStart(e, exercise.id)}
+                    className={`touch-manipulation select-none transition-all duration-200 ${
+                      isDragged ? 'opacity-30' : ''
+                    } ${isDropTarget ? 'ring-2 ring-primary bg-primary/5' : 'active:scale-95'}`}
+                    style={{
+                      userSelect: 'none',
+                      WebkitUserSelect: 'none',
+                      touchAction: 'none'
+                    }}
+                    onTouchStart={(e) => handleTouchStart(e, exercise.id)}
+                    onTouchMove={handleTouchMove}
+                    onTouchEnd={handleTouchEnd}
                     data-drop-target={exercise.id}
                   >
                     <CardContent className="p-4">
@@ -436,13 +373,34 @@ export function WorkoutGrid({
           </div>
         )}
 
+        {/* Floating Dragged Item */}
+        {draggedId && (
+          <div
+            className="fixed z-50 pointer-events-none"
+            style={{
+              left: dragPosition.x,
+              top: dragPosition.y,
+              transform: 'rotate(5deg) scale(0.9)',
+              transition: 'none'
+            }}
+          >
+            <Card className="opacity-80 shadow-2xl">
+              <CardContent className="p-4">
+                <h4 className="font-medium">
+                  {exercises.find(ex => ex.id === draggedId)?.name}
+                </h4>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
         <div className="text-sm text-muted-foreground bg-muted/50 p-4 rounded-lg">
           <div className="font-medium mb-2">How to use:</div>
           <div className="space-y-1">
-            <div>• Drag one exercise onto another to create a block</div>
-            <div>• Drag exercises onto existing blocks to add them</div>
-            <div>• Click the edit button on blocks to modify parameters</div>
-            <div>• Remove exercises or blocks with the trash button</div>
+            <div>• Press and hold an exercise to start dragging</div>
+            <div>• Drag onto another exercise to create a block</div>
+            <div>• Drag onto existing blocks to add exercises</div>
+            <div>• Tap the edit button on blocks to modify parameters</div>
           </div>
         </div>
       </div>
