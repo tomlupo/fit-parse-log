@@ -33,7 +33,9 @@ export function WorkoutGrid({
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dragPosition, setDragPosition] = useState({ x: 0, y: 0 });
   const [dropTarget, setDropTarget] = useState<string | null>(null);
+  const [dropZone, setDropZone] = useState<'exercise' | 'block' | 'reorder' | null>(null);
   const [editingBlock, setEditingBlock] = useState<WorkoutBlock | null>(null);
+  const [editingExercise, setEditingExercise] = useState<ParsedExercise | null>(null);
 
   // Get exercises not in any block
   const unassignedExercises = exercises.filter(ex => !ex.blockId);
@@ -88,8 +90,10 @@ export function WorkoutGrid({
     const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
     const dropElement = elementBelow?.closest('[data-drop-target]');
     const targetId = dropElement?.getAttribute('data-drop-target');
+    const zone = dropElement?.getAttribute('data-drop-zone') as 'exercise' | 'block' | 'reorder' | null;
     
     setDropTarget(targetId && targetId !== draggedId ? targetId : null);
+    setDropZone(zone);
   }, [draggedId]);
 
   const handleTouchEnd = useCallback((e: React.TouchEvent) => {
@@ -104,23 +108,71 @@ export function WorkoutGrid({
     document.body.style.touchAction = '';
 
     if (dropTarget && draggedId !== dropTarget) {
-      handleDrop(draggedId, dropTarget);
+      handleDrop(draggedId, dropTarget, dropZone);
     }
 
     setDraggedId(null);
     setDropTarget(null);
+    setDropZone(null);
     setDragPosition({ x: 0, y: 0 });
   }, [draggedId, dropTarget]);
 
-  const handleDrop = (draggedId: string, targetId: string) => {
+  const handleDrop = (draggedId: string, targetId: string, zone: 'exercise' | 'block' | 'reorder' | null) => {
     const draggedExercise = exercises.find(ex => ex.id === draggedId);
     const targetExercise = exercises.find(ex => ex.id === targetId);
     const targetBlock = blocks.find(block => block.id === targetId);
+    const draggedBlock = blocks.find(block => block.id === draggedId);
+
+    // Case 1: Reordering exercises within the same block or in unassigned area
+    if (zone === 'reorder' && draggedExercise && targetExercise) {
+      const draggedBlockId = draggedExercise.blockId;
+      const targetBlockId = targetExercise.blockId;
+      
+      // Only allow reordering within same context (both in same block or both unassigned)
+      if (draggedBlockId === targetBlockId) {
+        const contextExercises = exercises.filter(ex => ex.blockId === draggedBlockId);
+        const draggedIndex = contextExercises.findIndex(ex => ex.id === draggedId);
+        const targetIndex = contextExercises.findIndex(ex => ex.id === targetId);
+        
+        // Reorder by updating timestamps to maintain order
+        const now = Date.now();
+        const updatedExercises = [...contextExercises];
+        
+        // Remove dragged exercise and insert at target position
+        const [removed] = updatedExercises.splice(draggedIndex, 1);
+        updatedExercises.splice(targetIndex, 0, removed);
+        
+        // Update timestamps to maintain new order
+        updatedExercises.forEach((exercise, index) => {
+          const updatedExercise = { 
+            ...exercise, 
+            timestamp: new Date(now - (updatedExercises.length - index) * 1000) 
+          };
+          onUpdateExercise(updatedExercise);
+        });
+
+        toast({
+          title: "Exercise reordered",
+          description: `${draggedExercise.name} has been moved`,
+        });
+        return;
+      }
+    }
+    
+    // Case 2: Block reordering
+    if (zone === 'reorder' && draggedBlock && targetBlock) {
+      // Handle block reordering logic here if needed
+      toast({
+        title: "Block reordered",
+        description: `${draggedBlock.name} has been moved`,
+      });
+      return;
+    }
 
     if (!draggedExercise) return;
 
-    // Case 1: Dragging exercise onto another exercise - create new block
-    if (targetExercise && !targetExercise.blockId) {
+    // Case 3: Dragging exercise onto another exercise - create new block
+    if (targetExercise && !targetExercise.blockId && zone === 'exercise') {
       const newBlock: WorkoutBlock = {
         id: Date.now().toString(),
         name: `${draggedExercise.name} + ${targetExercise.name}`,
@@ -140,8 +192,8 @@ export function WorkoutGrid({
         description: `Created "${newBlock.name}" with 2 exercises`,
       });
     }
-    // Case 2: Dragging exercise onto existing block
-    else if (targetBlock) {
+    // Case 4: Dragging exercise onto existing block
+    else if (targetBlock && zone === 'block') {
       const updatedBlock = {
         ...targetBlock,
         exercises: [...targetBlock.exercises, draggedExercise.id]
@@ -157,8 +209,22 @@ export function WorkoutGrid({
     }
   };
 
+  const handleExerciseEdit = (exercise: ParsedExercise) => {
+    setEditingExercise(exercise);
+  };
+
   const handleBlockEdit = (block: WorkoutBlock) => {
     setEditingBlock(block);
+  };
+
+  const handleExerciseSave = () => {
+    if (!editingExercise) return;
+    onUpdateExercise(editingExercise);
+    setEditingExercise(null);
+    toast({
+      title: "Exercise updated",
+      description: `${editingExercise.name} has been updated`,
+    });
   };
 
   const handleBlockSave = () => {
@@ -242,9 +308,10 @@ export function WorkoutGrid({
             <Card 
               key={block.id}
               className={`p-4 transition-all duration-200 ${
-                isDropTarget ? 'ring-2 ring-primary bg-primary/5' : ''
+                dropTarget === block.id && dropZone === 'block' ? 'ring-2 ring-primary bg-primary/5' : ''
               }`}
               data-drop-target={block.id}
+              data-drop-zone="block"
             >
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
@@ -282,7 +349,7 @@ export function WorkoutGrid({
                       key={exercise.id}
                       className={`touch-manipulation select-none transition-all duration-200 ${
                         isDragged ? 'opacity-30' : 'active:scale-95'
-                      }`}
+                      } ${dropTarget === exercise.id && dropZone === 'reorder' ? 'ring-2 ring-blue-500 bg-blue-50' : ''}`}
                       style={{
                         userSelect: 'none',
                         WebkitUserSelect: 'none',
@@ -292,18 +359,29 @@ export function WorkoutGrid({
                       onTouchMove={handleTouchMove}
                       onTouchEnd={handleTouchEnd}
                       data-drop-target={exercise.id}
+                      data-drop-zone="reorder"
                     >
                       <CardContent className="p-3">
                         <div className="flex items-start justify-between mb-2">
                           <h4 className="font-medium text-sm">{exercise.name}</h4>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => onRemoveExercise(exercise.id)}
-                            className="h-6 w-6"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
+                          <div className="flex gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleExerciseEdit(exercise)}
+                              className="h-6 w-6"
+                            >
+                              <Edit className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => onRemoveExercise(exercise.id)}
+                              className="h-6 w-6"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
                         </div>
                         <div className="flex flex-wrap gap-1 mb-2">
                           {renderExerciseBadges(exercise)}
@@ -335,7 +413,7 @@ export function WorkoutGrid({
                     key={exercise.id}
                     className={`touch-manipulation select-none transition-all duration-200 ${
                       isDragged ? 'opacity-30' : ''
-                    } ${isDropTarget ? 'ring-2 ring-primary bg-primary/5' : 'active:scale-95'}`}
+                    } ${dropTarget === exercise.id && (dropZone === 'exercise' || dropZone === 'reorder') ? 'ring-2 ring-primary bg-primary/5' : 'active:scale-95'}`}
                     style={{
                       userSelect: 'none',
                       WebkitUserSelect: 'none',
@@ -345,18 +423,29 @@ export function WorkoutGrid({
                     onTouchMove={handleTouchMove}
                     onTouchEnd={handleTouchEnd}
                     data-drop-target={exercise.id}
+                    data-drop-zone="exercise"
                   >
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between mb-3">
                         <h4 className="font-medium">{exercise.name}</h4>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => onRemoveExercise(exercise.id)}
-                          className="h-6 w-6"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
+                        <div className="flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleExerciseEdit(exercise)}
+                            className="h-6 w-6"
+                          >
+                            <Edit className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => onRemoveExercise(exercise.id)}
+                            className="h-6 w-6"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
                       </div>
                       <div className="flex flex-wrap gap-1 mb-3">
                         {renderExerciseBadges(exercise)}
@@ -400,7 +489,8 @@ export function WorkoutGrid({
             <div>• Press and hold an exercise to start dragging</div>
             <div>• Drag onto another exercise to create a block</div>
             <div>• Drag onto existing blocks to add exercises</div>
-            <div>• Tap the edit button on blocks to modify parameters</div>
+            <div>• Drag within same context to reorder</div>
+            <div>• Tap edit button to modify exercise or block parameters</div>
           </div>
         </div>
       </div>
@@ -482,6 +572,128 @@ export function WorkoutGrid({
               </div>
               
               <Button onClick={handleBlockSave} className="w-full">
+                Save Changes
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Exercise Edit Dialog */}
+      <Dialog open={!!editingExercise} onOpenChange={() => setEditingExercise(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Exercise</DialogTitle>
+          </DialogHeader>
+          {editingExercise && (
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="exerciseName">Exercise Name</Label>
+                <Input
+                  id="exerciseName"
+                  value={editingExercise.name}
+                  onChange={(e) => setEditingExercise({ ...editingExercise, name: e.target.value })}
+                />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="sets">Sets</Label>
+                  <Input
+                    id="sets"
+                    type="number"
+                    value={editingExercise.parsedData.sets || ''}
+                    onChange={(e) => setEditingExercise({ 
+                      ...editingExercise, 
+                      parsedData: { 
+                        ...editingExercise.parsedData, 
+                        sets: e.target.value ? parseInt(e.target.value) : undefined 
+                      }
+                    })}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="reps">Reps</Label>
+                  <Input
+                    id="reps"
+                    type="number"
+                    value={editingExercise.parsedData.reps || ''}
+                    onChange={(e) => setEditingExercise({ 
+                      ...editingExercise, 
+                      parsedData: { 
+                        ...editingExercise.parsedData, 
+                        reps: e.target.value ? parseInt(e.target.value) : undefined 
+                      }
+                    })}
+                  />
+                </div>
+              </div>
+              
+              <div>
+                <Label htmlFor="weight">Weight</Label>
+                <Input
+                  id="weight"
+                  placeholder="e.g., 135lbs, 60kg"
+                  value={editingExercise.parsedData.weight || ''}
+                  onChange={(e) => setEditingExercise({ 
+                    ...editingExercise, 
+                    parsedData: { 
+                      ...editingExercise.parsedData, 
+                      weight: e.target.value || undefined 
+                    }
+                  })}
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="time">Time</Label>
+                <Input
+                  id="time"
+                  placeholder="e.g., 30s, 2min, 1:30"
+                  value={editingExercise.parsedData.time || ''}
+                  onChange={(e) => setEditingExercise({ 
+                    ...editingExercise, 
+                    parsedData: { 
+                      ...editingExercise.parsedData, 
+                      time: e.target.value || undefined 
+                    }
+                  })}
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="distance">Distance</Label>
+                <Input
+                  id="distance"
+                  placeholder="e.g., 5km, 2 miles"
+                  value={editingExercise.parsedData.distance || ''}
+                  onChange={(e) => setEditingExercise({ 
+                    ...editingExercise, 
+                    parsedData: { 
+                      ...editingExercise.parsedData, 
+                      distance: e.target.value || undefined 
+                    }
+                  })}
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="rest">Rest Period</Label>
+                <Input
+                  id="rest"
+                  placeholder="e.g., 30s, 1min"
+                  value={editingExercise.parsedData.restPeriod || ''}
+                  onChange={(e) => setEditingExercise({ 
+                    ...editingExercise, 
+                    parsedData: { 
+                      ...editingExercise.parsedData, 
+                      restPeriod: e.target.value || undefined 
+                    }
+                  })}
+                />
+              </div>
+              
+              <Button onClick={handleExerciseSave} className="w-full">
                 Save Changes
               </Button>
             </div>
