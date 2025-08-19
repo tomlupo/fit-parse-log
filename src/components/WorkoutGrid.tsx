@@ -25,6 +25,7 @@ interface DragState {
   draggedId: string | null;
   dragOffset: { x: number; y: number };
   dropTarget: string | null;
+  startTime: number;
 }
 
 export function WorkoutGrid({ 
@@ -41,7 +42,8 @@ export function WorkoutGrid({
     isDragging: false,
     draggedId: null,
     dragOffset: { x: 0, y: 0 },
-    dropTarget: null
+    dropTarget: null,
+    startTime: 0
   });
   const [editingBlock, setEditingBlock] = useState<WorkoutBlock | null>(null);
   const dragRef = useRef<{ startX: number; startY: number } | null>(null);
@@ -66,35 +68,51 @@ export function WorkoutGrid({
     }
   };
 
-  const handleMouseDown = useCallback((e: React.MouseEvent, itemId: string) => {
+  const handleDragStart = useCallback((e: React.MouseEvent | React.TouchEvent, itemId: string) => {
     e.preventDefault();
+    e.stopPropagation();
+    
+    // Prevent text selection during drag
+    document.body.style.userSelect = 'none';
+    document.body.style.webkitUserSelect = 'none';
+    document.body.style.touchAction = 'none';
+    
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
     const rect = e.currentTarget.getBoundingClientRect();
+    
     dragRef.current = {
-      startX: e.clientX - rect.left,
-      startY: e.clientY - rect.top
+      startX: clientX - rect.left,
+      startY: clientY - rect.top
     };
     
     setDragState({
       isDragging: true,
       draggedId: itemId,
-      dragOffset: { x: 0, y: 0 },
-      dropTarget: null
+      dragOffset: { x: rect.left, y: rect.top },
+      dropTarget: null,
+      startTime: Date.now()
     });
   }, []);
 
-  const handleMouseMove = useCallback((e: MouseEvent) => {
+  const handleDragMove = useCallback((e: MouseEvent | TouchEvent) => {
     if (!dragState.isDragging || !dragRef.current) return;
+
+    e.preventDefault();
+    
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
 
     setDragState(prev => ({
       ...prev,
       dragOffset: {
-        x: e.clientX - dragRef.current!.startX,
-        y: e.clientY - dragRef.current!.startY
+        x: clientX - dragRef.current!.startX,
+        y: clientY - dragRef.current!.startY
       }
     }));
 
     // Find drop target
-    const elements = document.elementsFromPoint(e.clientX, e.clientY);
+    const elements = document.elementsFromPoint(clientX, clientY);
     const dropElement = elements.find(el => 
       el.getAttribute('data-drop-target') && 
       el.getAttribute('data-drop-target') !== dragState.draggedId
@@ -106,10 +124,18 @@ export function WorkoutGrid({
     }));
   }, [dragState.isDragging, dragState.draggedId]);
 
-  const handleMouseUp = useCallback(() => {
+  const handleDragEnd = useCallback(() => {
     if (!dragState.isDragging) return;
 
-    if (dragState.dropTarget && dragState.draggedId && dragState.dropTarget !== dragState.draggedId) {
+    // Restore text selection
+    document.body.style.userSelect = '';
+    document.body.style.webkitUserSelect = '';
+    document.body.style.touchAction = '';
+
+    const dragDuration = Date.now() - dragState.startTime;
+    
+    // Only process drop if it was a drag (not a tap) and has a drop target
+    if (dragDuration > 150 && dragState.dropTarget && dragState.draggedId && dragState.dropTarget !== dragState.draggedId) {
       handleDrop(dragState.draggedId, dragState.dropTarget);
     }
 
@@ -117,26 +143,33 @@ export function WorkoutGrid({
       isDragging: false,
       draggedId: null,
       dragOffset: { x: 0, y: 0 },
-      dropTarget: null
+      dropTarget: null,
+      startTime: 0
     });
     dragRef.current = null;
   }, [dragState]);
 
   React.useEffect(() => {
     if (dragState.isDragging) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
+      // Add both mouse and touch event listeners
+      document.addEventListener('mousemove', handleDragMove);
+      document.addEventListener('mouseup', handleDragEnd);
+      document.addEventListener('touchmove', handleDragMove, { passive: false });
+      document.addEventListener('touchend', handleDragEnd);
       document.body.style.cursor = 'grabbing';
-      document.body.style.userSelect = 'none';
     }
 
     return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('mousemove', handleDragMove);
+      document.removeEventListener('mouseup', handleDragEnd);
+      document.removeEventListener('touchmove', handleDragMove);
+      document.removeEventListener('touchend', handleDragEnd);
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
+      document.body.style.webkitUserSelect = '';
+      document.body.style.touchAction = '';
     };
-  }, [dragState.isDragging, handleMouseMove, handleMouseUp]);
+  }, [dragState.isDragging, handleDragMove, handleDragEnd]);
 
   const handleDrop = (draggedId: string, targetId: string) => {
     const draggedExercise = exercises.find(ex => ex.id === draggedId);
@@ -306,17 +339,19 @@ export function WorkoutGrid({
                   return (
                     <Card 
                       key={exercise.id}
-                      className={`cursor-grab active:cursor-grabbing transition-all duration-200 ${
-                        isDragged ? 'opacity-50 scale-95' : 'hover:scale-105'
+                      className={`select-none cursor-grab active:cursor-grabbing transition-all duration-200 ${
+                        isDragged ? 'opacity-50 scale-95 z-50' : 'hover:scale-105'
                       }`}
                       style={isDragged ? {
                         position: 'fixed',
                         left: dragState.dragOffset.x,
                         top: dragState.dragOffset.y,
                         zIndex: 1000,
-                        pointerEvents: 'none'
+                        pointerEvents: 'none',
+                        transform: 'rotate(5deg)'
                       } : {}}
-                      onMouseDown={(e) => handleMouseDown(e, exercise.id)}
+                      onMouseDown={(e) => handleDragStart(e, exercise.id)}
+                      onTouchStart={(e) => handleDragStart(e, exercise.id)}
                       data-drop-target={exercise.id}
                     >
                       <CardContent className="p-3">
@@ -359,17 +394,19 @@ export function WorkoutGrid({
                 return (
                   <Card 
                     key={exercise.id}
-                    className={`cursor-grab active:cursor-grabbing transition-all duration-200 ${
-                      isDragged ? 'opacity-50 scale-95' : ''
+                    className={`select-none cursor-grab active:cursor-grabbing transition-all duration-200 ${
+                      isDragged ? 'opacity-50 scale-95 z-50' : ''
                     } ${isDropTarget ? 'ring-2 ring-primary scale-105' : 'hover:scale-105'}`}
                     style={isDragged ? {
                       position: 'fixed',
                       left: dragState.dragOffset.x,
                       top: dragState.dragOffset.y,
                       zIndex: 1000,
-                      pointerEvents: 'none'
+                      pointerEvents: 'none',
+                      transform: 'rotate(5deg)'
                     } : {}}
-                    onMouseDown={(e) => handleMouseDown(e, exercise.id)}
+                    onMouseDown={(e) => handleDragStart(e, exercise.id)}
+                    onTouchStart={(e) => handleDragStart(e, exercise.id)}
                     data-drop-target={exercise.id}
                   >
                     <CardContent className="p-4">
