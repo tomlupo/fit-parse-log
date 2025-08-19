@@ -15,6 +15,16 @@ export interface ParsedExercise {
   originalInput: string;
   parsedData: ParsedExerciseData;
   timestamp: Date;
+  blockId?: string; // Optional block/round assignment
+}
+
+export interface WorkoutBlock {
+  id: string;
+  name: string;
+  type: 'round' | 'superset' | 'circuit';
+  exercises: string[]; // Exercise IDs
+  restBetweenExercises?: string;
+  rounds?: number;
 }
 
 export function parseExerciseParameters(input: string): ParsedExerciseData {

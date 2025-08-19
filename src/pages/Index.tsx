@@ -1,12 +1,17 @@
 import React, { useState } from 'react';
 import { ExerciseForm } from '@/components/ExerciseForm';
-import { ParsedExercise } from '@/lib/exerciseParser';
+import { ParsedExercise, WorkoutBlock } from '@/lib/exerciseParser';
 import { WorkoutSession } from '@/components/WorkoutSession';
+import { WorkoutFlow } from '@/components/WorkoutFlow';
 import { WorkoutHeader } from '@/components/WorkoutHeader';
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { List, Workflow } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 const Index = () => {
   const [exercises, setExercises] = useState<ParsedExercise[]>([]);
+  const [blocks, setBlocks] = useState<WorkoutBlock[]>([]);
   const { toast } = useToast();
 
   const handleAddExercise = (exercise: ParsedExercise) => {
@@ -28,10 +33,36 @@ const Index = () => {
 
   const handleClearSession = () => {
     setExercises([]);
+    setBlocks([]);
     toast({
       title: "Workout cleared",
-      description: "All exercises have been removed from your session.",
+      description: "All exercises and blocks have been removed from your session.",
     });
+  };
+
+  const handleAddBlock = (block: WorkoutBlock) => {
+    setBlocks(prev => [...prev, block]);
+  };
+
+  const handleRemoveBlock = (id: string) => {
+    setBlocks(prev => prev.filter(block => block.id !== id));
+    // Remove block association from exercises
+    setExercises(prev => prev.map(exercise => 
+      exercise.blockId === id 
+        ? { ...exercise, blockId: undefined }
+        : exercise
+    ));
+    toast({
+      title: "Block removed",
+      description: "Block has been removed and exercises unassigned.",
+      variant: "destructive",
+    });
+  };
+
+  const handleUpdateExercise = (updatedExercise: ParsedExercise) => {
+    setExercises(prev => prev.map(exercise => 
+      exercise.id === updatedExercise.id ? updatedExercise : exercise
+    ));
   };
 
   return (
@@ -41,11 +72,38 @@ const Index = () => {
         
         <div className="flex flex-col items-center space-y-8">
           <ExerciseForm onAddExercise={handleAddExercise} />
-          <WorkoutSession 
-            exercises={exercises}
-            onRemoveExercise={handleRemoveExercise}
-            onClearSession={handleClearSession}
-          />
+          
+          <Tabs defaultValue="list" className="w-full max-w-6xl">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="list" className="flex items-center gap-2">
+                <List className="h-4 w-4" />
+                List View
+              </TabsTrigger>
+              <TabsTrigger value="flow" className="flex items-center gap-2">
+                <Workflow className="h-4 w-4" />
+                Flow View
+              </TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="list" className="flex justify-center">
+              <WorkoutSession 
+                exercises={exercises}
+                onRemoveExercise={handleRemoveExercise}
+                onClearSession={handleClearSession}
+              />
+            </TabsContent>
+            
+            <TabsContent value="flow" className="flex justify-center">
+              <WorkoutFlow
+                exercises={exercises}
+                blocks={blocks}
+                onRemoveExercise={handleRemoveExercise}
+                onAddBlock={handleAddBlock}
+                onRemoveBlock={handleRemoveBlock}
+                onUpdateExercise={handleUpdateExercise}
+              />
+            </TabsContent>
+          </Tabs>
         </div>
       </div>
     </div>
