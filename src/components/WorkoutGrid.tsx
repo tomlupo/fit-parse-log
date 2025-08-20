@@ -156,6 +156,24 @@ function SortableExercise({ exercise, onEdit, onRemove }: {
   );
 }
 
+// Droppable Unassigned Area
+function DroppableUnassigned({ children }: { children: React.ReactNode }) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: 'unassigned',
+    data: { type: 'unassigned' }
+  });
+
+  return (
+    <div 
+      ref={setNodeRef}
+      className={`space-y-4 transition-all ${isOver ? 'bg-primary/5 rounded-lg p-4 border-2 border-dashed border-primary' : ''}`}
+    >
+      <h3 className="text-lg font-semibold">Exercises</h3>
+      {children}
+    </div>
+  );
+}
+
 // Droppable Block Container
 function DroppableBlock({ 
   block, 
@@ -366,6 +384,8 @@ export function WorkoutGrid({
     const activeContainer = findContainer(activeId);
     const overContainer = over.data.current?.type === 'block' 
       ? over.id as string
+      : over.data.current?.type === 'unassigned'
+      ? 'unassigned'
       : findContainer(overId);
 
     if (!activeContainer || !overContainer || activeContainer === overContainer) {
@@ -394,6 +414,8 @@ export function WorkoutGrid({
     const activeContainer = findContainer(activeId);
     const overContainer = over.data.current?.type === 'block' 
       ? over.id as string
+      : over.data.current?.type === 'unassigned'
+      ? 'unassigned'
       : findContainer(overId);
 
     if (!activeContainer || !overContainer) return;
@@ -615,8 +637,7 @@ export function WorkoutGrid({
 
         {/* Unassigned Exercises */}
         {containers.unassigned.length > 0 && (
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold">Exercises</h3>
+          <DroppableUnassigned>
             <SortableContext items={containers.unassigned} strategy={verticalListSortingStrategy}>
               <div className="space-y-3">
                 {containers.unassigned.map(exerciseId => {
@@ -632,7 +653,7 @@ export function WorkoutGrid({
                 })}
               </div>
             </SortableContext>
-          </div>
+          </DroppableUnassigned>
         )}
 
         <div className="text-sm text-muted-foreground bg-muted/50 p-4 rounded-lg">
