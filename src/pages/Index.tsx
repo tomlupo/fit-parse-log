@@ -50,12 +50,22 @@ const Index = () => {
     }
   ];
 
+  // Layout order - tracks the order of blocks and standalone exercises
+  const defaultLayoutOrder = [
+    { type: 'block' as const, id: 'block1' }
+  ];
+
   const [exercises, setExercises] = useState<ParsedExercise[]>(defaultExercises);
   const [blocks, setBlocks] = useState<WorkoutBlock[]>(defaultBlocks);
+  const [layoutOrder, setLayoutOrder] = useState<Array<{ type: 'block' | 'exercise', id: string }>>(defaultLayoutOrder);
   const { toast } = useToast();
 
   const handleAddExercise = (exercise: ParsedExercise) => {
     setExercises(prev => [exercise, ...prev]);
+    // Add standalone exercise to layout
+    if (!exercise.blockId) {
+      setLayoutOrder(prev => [{ type: 'exercise', id: exercise.id }, ...prev]);
+    }
     toast({
       title: "Exercise added!",
       description: `${exercise.name} has been added to your workout.`,
@@ -64,6 +74,8 @@ const Index = () => {
 
   const handleRemoveExercise = (id: string) => {
     setExercises(prev => prev.filter(exercise => exercise.id !== id));
+    // Remove from layout if it's a standalone exercise
+    setLayoutOrder(prev => prev.filter(item => !(item.type === 'exercise' && item.id === id)));
     toast({
       title: "Exercise removed",
       description: "Exercise has been removed from your workout.",
@@ -74,6 +86,7 @@ const Index = () => {
   const handleClearSession = () => {
     setExercises([]);
     setBlocks([]);
+    setLayoutOrder([]);
     toast({
       title: "Workout cleared",
       description: "All exercises and blocks have been removed from your session.",
@@ -82,16 +95,28 @@ const Index = () => {
 
   const handleAddBlock = (block: WorkoutBlock) => {
     setBlocks(prev => [...prev, block]);
+    // Add block to layout
+    setLayoutOrder(prev => [...prev, { type: 'block', id: block.id }]);
   };
 
   const handleRemoveBlock = (id: string) => {
     setBlocks(prev => prev.filter(block => block.id !== id));
-    // Remove block association from exercises
+    // Remove block from layout
+    setLayoutOrder(prev => prev.filter(item => !(item.type === 'block' && item.id === id)));
+    // Remove block association from exercises and add them to layout as standalone
+    const orphanedExercises = exercises.filter(ex => ex.blockId === id);
     setExercises(prev => prev.map(exercise => 
       exercise.blockId === id 
         ? { ...exercise, blockId: undefined }
         : exercise
     ));
+    // Add orphaned exercises to layout
+    if (orphanedExercises.length > 0) {
+      setLayoutOrder(prev => [
+        ...prev,
+        ...orphanedExercises.map(ex => ({ type: 'exercise' as const, id: ex.id }))
+      ]);
+    }
     toast({
       title: "Block removed",
       description: "Block has been removed and exercises unassigned.",
@@ -100,9 +125,24 @@ const Index = () => {
   };
 
   const handleUpdateExercise = (updatedExercise: ParsedExercise) => {
+    const oldExercise = exercises.find(ex => ex.id === updatedExercise.id);
     setExercises(prev => prev.map(exercise => 
       exercise.id === updatedExercise.id ? updatedExercise : exercise
     ));
+    
+    // Handle layout changes when exercise moves between block and standalone
+    if (oldExercise) {
+      const wasStandalone = !oldExercise.blockId;
+      const isNowStandalone = !updatedExercise.blockId;
+      
+      if (wasStandalone && !isNowStandalone) {
+        // Moving from standalone to block - remove from layout
+        setLayoutOrder(prev => prev.filter(item => !(item.type === 'exercise' && item.id === updatedExercise.id)));
+      } else if (!wasStandalone && isNowStandalone) {
+        // Moving from block to standalone - add to layout
+        setLayoutOrder(prev => [...prev, { type: 'exercise', id: updatedExercise.id }]);
+      }
+    }
   };
 
   const handleUpdateBlock = (updatedBlock: WorkoutBlock) => {
@@ -113,6 +153,10 @@ const Index = () => {
 
   const handleReorderBlocks = (reorderedBlocks: WorkoutBlock[]) => {
     setBlocks(reorderedBlocks);
+  };
+
+  const handleReorderLayout = (newLayoutOrder: Array<{ type: 'block' | 'exercise', id: string }>) => {
+    setLayoutOrder(newLayoutOrder);
   };
 
   return (
@@ -148,12 +192,14 @@ const Index = () => {
               <WorkoutGrid
                 exercises={exercises}
                 blocks={blocks}
+                layoutOrder={layoutOrder}
                 onRemoveExercise={handleRemoveExercise}
                 onUpdateExercise={handleUpdateExercise}
                 onAddBlock={handleAddBlock}
                 onUpdateBlock={handleUpdateBlock}
                 onRemoveBlock={handleRemoveBlock}
                 onReorderBlocks={handleReorderBlocks}
+                onReorderLayout={handleReorderLayout}
               />
             </TabsContent>
           </Tabs>

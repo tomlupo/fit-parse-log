@@ -163,26 +163,8 @@ function SortableExercise({ exercise, onEdit, onRemove, onUngroup }: {
   );
 }
 
-// Droppable Unassigned Area
-function DroppableUnassigned({ children }: { children: React.ReactNode }) {
-  const { setNodeRef, isOver } = useDroppable({
-    id: 'unassigned',
-    data: { type: 'unassigned' }
-  });
-
-  return (
-    <div 
-      ref={setNodeRef}
-      className={`space-y-4 transition-all ${isOver ? 'bg-primary/5 rounded-lg p-4 border-2 border-dashed border-primary' : ''}`}
-    >
-      <h3 className="text-lg font-semibold">Exercises</h3>
-      {children}
-    </div>
-  );
-}
-
 // Droppable Block Container
-function DroppableBlock({ 
+function DroppableBlock({
   block, 
   children, 
   onEdit, 
@@ -302,38 +284,38 @@ function DroppableBlock({
 interface WorkoutGridProps {
   exercises: ParsedExercise[];
   blocks: WorkoutBlock[];
+  layoutOrder: Array<{ type: 'block' | 'exercise', id: string }>;
   onRemoveExercise: (id: string) => void;
   onUpdateExercise: (exercise: ParsedExercise) => void;
   onAddBlock: (block: WorkoutBlock) => void;
   onUpdateBlock: (block: WorkoutBlock) => void;
   onRemoveBlock: (id: string) => void;
   onReorderBlocks: (blocks: WorkoutBlock[]) => void;
+  onReorderLayout: (layoutOrder: Array<{ type: 'block' | 'exercise', id: string }>) => void;
 }
 
 export function WorkoutGrid({ 
   exercises, 
   blocks, 
+  layoutOrder,
   onRemoveExercise, 
   onUpdateExercise,
   onAddBlock,
   onUpdateBlock,
   onRemoveBlock,
-  onReorderBlocks
+  onReorderBlocks,
+  onReorderLayout
 }: WorkoutGridProps) {
   const { toast } = useToast();
   const [editingBlock, setEditingBlock] = useState<WorkoutBlock | null>(null);
   const [editingExercise, setEditingExercise] = useState<ParsedExercise | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
 
-  // Create containers with ordered items
+  // Create containers with ordered items - now unified layout
   const containers = useMemo(() => {
-    const result: Record<string, string[]> = {
-      unassigned: exercises
-        .filter(ex => !ex.blockId)
-        .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
-        .map(ex => ex.id)
-    };
-
+    const result: Record<string, string[]> = {};
+    
+    // Add block containers
     blocks.forEach(block => {
       result[`block-${block.id}`] = exercises
         .filter(ex => ex.blockId === block.id)
@@ -364,8 +346,6 @@ export function WorkoutGrid({
   );
 
   const findContainer = (id: string): string | null => {
-    if (containers.unassigned.includes(id)) return 'unassigned';
-    
     for (const [containerId, items] of Object.entries(containers)) {
       if (items.includes(id)) return containerId;
     }
@@ -386,8 +366,6 @@ export function WorkoutGrid({
     const activeContainer = findContainer(activeId);
     const overContainer = over.data.current?.type === 'block' 
       ? over.id as string
-      : over.data.current?.type === 'unassigned'
-      ? 'unassigned'
       : findContainer(overId);
 
     if (!activeContainer || !overContainer || activeContainer === overContainer) {
@@ -398,7 +376,7 @@ export function WorkoutGrid({
     const activeExercise = exercises.find(ex => ex.id === activeId);
     if (!activeExercise) return;
 
-    const targetBlockId = overContainer === 'unassigned' ? undefined : overContainer.replace('block-', '');
+    const targetBlockId = overContainer.startsWith('block-') ? overContainer.replace('block-', '') : undefined;
     const updatedExercise = { ...activeExercise, blockId: targetBlockId };
     onUpdateExercise(updatedExercise);
   };
@@ -416,8 +394,6 @@ export function WorkoutGrid({
     const activeContainer = findContainer(activeId);
     const overContainer = over.data.current?.type === 'block' 
       ? over.id as string
-      : over.data.current?.type === 'unassigned'
-      ? 'unassigned'
       : findContainer(overId);
 
     if (!activeContainer || !overContainer) return;
@@ -455,12 +431,12 @@ export function WorkoutGrid({
   const activeExercise = exercises.find(ex => ex.id === activeId);
 
   const handleMoveBlockUp = (blockId: string) => {
-    const currentIndex = blocks.findIndex(block => block.id === blockId);
+    const currentIndex = layoutOrder.findIndex(item => item.type === 'block' && item.id === blockId);
     if (currentIndex > 0) {
-      const reorderedBlocks = [...blocks];
-      [reorderedBlocks[currentIndex - 1], reorderedBlocks[currentIndex]] = 
-        [reorderedBlocks[currentIndex], reorderedBlocks[currentIndex - 1]];
-      onReorderBlocks(reorderedBlocks);
+      const newOrder = [...layoutOrder];
+      [newOrder[currentIndex - 1], newOrder[currentIndex]] = 
+        [newOrder[currentIndex], newOrder[currentIndex - 1]];
+      onReorderLayout(newOrder);
       
       toast({
         title: "Block moved up",
@@ -470,12 +446,12 @@ export function WorkoutGrid({
   };
 
   const handleMoveBlockDown = (blockId: string) => {
-    const currentIndex = blocks.findIndex(block => block.id === blockId);
-    if (currentIndex < blocks.length - 1) {
-      const reorderedBlocks = [...blocks];
-      [reorderedBlocks[currentIndex], reorderedBlocks[currentIndex + 1]] = 
-        [reorderedBlocks[currentIndex + 1], reorderedBlocks[currentIndex]];
-      onReorderBlocks(reorderedBlocks);
+    const currentIndex = layoutOrder.findIndex(item => item.type === 'block' && item.id === blockId);
+    if (currentIndex < layoutOrder.length - 1) {
+      const newOrder = [...layoutOrder];
+      [newOrder[currentIndex], newOrder[currentIndex + 1]] = 
+        [newOrder[currentIndex + 1], newOrder[currentIndex]];
+      onReorderLayout(newOrder);
       
       toast({
         title: "Block moved down",
@@ -603,69 +579,67 @@ export function WorkoutGrid({
           </Button>
         </div>
 
-        {/* Blocks */}
-        {blocks.map((block, index) => {
-          const blockExercises = exercises.filter(ex => ex.blockId === block.id)
-            .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-          const containerId = `block-${block.id}`;
-          
-          return (
-            <DroppableBlock
-              key={block.id}
-              block={block}
-              onEdit={handleBlockEdit}
-              onRemove={onRemoveBlock}
-              onMoveUp={handleMoveBlockUp}
-              onMoveDown={handleMoveBlockDown}
-              canMoveUp={index > 0}
-              canMoveDown={index < blocks.length - 1}
-              isEmpty={blockExercises.length === 0}
-            >
-              <SortableContext items={containers[containerId] || []} strategy={verticalListSortingStrategy}>
-                <div className="space-y-3">
-                  {blockExercises.map(exercise => (
-                    <SortableExercise
-                      key={exercise.id}
-                      exercise={exercise}
-                      onEdit={handleExerciseEdit}
-                      onRemove={onRemoveExercise}
-                      onUngroup={(ex) => onUpdateExercise({ ...ex, blockId: undefined })}
-                    />
-                  ))}
-                </div>
-              </SortableContext>
-            </DroppableBlock>
-          );
+        {/* Unified Layout */}
+        {layoutOrder.map((item, index) => {
+          if (item.type === 'block') {
+            const block = blocks.find(b => b.id === item.id);
+            if (!block) return null;
+            
+            const blockExercises = exercises.filter(ex => ex.blockId === block.id)
+              .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+            const containerId = `block-${block.id}`;
+            
+            return (
+              <DroppableBlock
+                key={block.id}
+                block={block}
+                onEdit={handleBlockEdit}
+                onRemove={onRemoveBlock}
+                onMoveUp={handleMoveBlockUp}
+                onMoveDown={handleMoveBlockDown}
+                canMoveUp={index > 0}
+                canMoveDown={index < layoutOrder.length - 1}
+                isEmpty={blockExercises.length === 0}
+              >
+                <SortableContext items={containers[containerId] || []} strategy={verticalListSortingStrategy}>
+                  <div className="space-y-3">
+                    {blockExercises.map(exercise => (
+                      <SortableExercise
+                        key={exercise.id}
+                        exercise={exercise}
+                        onEdit={handleExerciseEdit}
+                        onRemove={onRemoveExercise}
+                        onUngroup={(ex) => onUpdateExercise({ ...ex, blockId: undefined })}
+                      />
+                    ))}
+                  </div>
+                </SortableContext>
+              </DroppableBlock>
+            );
+          } else {
+            // Standalone exercise
+            const exercise = exercises.find(ex => ex.id === item.id);
+            if (!exercise || exercise.blockId) return null;
+            
+            return (
+              <SortableExercise
+                key={exercise.id}
+                exercise={exercise}
+                onEdit={handleExerciseEdit}
+                onRemove={onRemoveExercise}
+              />
+            );
+          }
         })}
-
-        {/* Unassigned Exercises */}
-        {containers.unassigned.length > 0 && (
-          <DroppableUnassigned>
-            <SortableContext items={containers.unassigned} strategy={verticalListSortingStrategy}>
-              <div className="space-y-3">
-                {containers.unassigned.map(exerciseId => {
-                  const exercise = exercises.find(ex => ex.id === exerciseId);
-                  return exercise ? (
-                    <SortableExercise
-                      key={exercise.id}
-                      exercise={exercise}
-                      onEdit={handleExerciseEdit}
-                      onRemove={onRemoveExercise}
-                    />
-                  ) : null;
-                })}
-              </div>
-            </SortableContext>
-          </DroppableUnassigned>
-        )}
 
         <div className="text-sm text-muted-foreground bg-muted/50 p-4 rounded-lg">
           <div className="font-medium mb-2">How to use:</div>
           <div className="space-y-1">
-            <div>• Drag exercises by their grip handles to reorder</div>
+            <div>• Drag exercises by their grip handles to reorder within blocks</div>
             <div>• Drag exercises into blocks to group them</div>
-            <div>• Use up/down arrows to reorder blocks</div>
+            <div>• Use up/down arrows to reorder blocks in the layout</div>
             <div>• Use "Add Block" button to create new blocks</div>
+            <div>• Use "Ungroup" to remove exercises from blocks</div>
             <div>• Tap edit button to modify exercise or block parameters</div>
           </div>
         </div>
