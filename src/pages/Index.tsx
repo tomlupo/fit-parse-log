@@ -159,6 +159,128 @@ const Index = () => {
     setLayoutOrder(newLayoutOrder);
   };
 
+  const handleMoveItemUp = (itemType: 'block' | 'exercise', itemId: string) => {
+    const currentIndex = layoutOrder.findIndex(item => item.type === itemType && item.id === itemId);
+    if (currentIndex > 0) {
+      const newOrder = [...layoutOrder];
+      [newOrder[currentIndex - 1], newOrder[currentIndex]] = 
+        [newOrder[currentIndex], newOrder[currentIndex - 1]];
+      setLayoutOrder(newOrder);
+      toast({
+        title: `${itemType === 'block' ? 'Block' : 'Exercise'} moved up`,
+        description: "Item order updated",
+      });
+    }
+  };
+
+  const handleMoveItemDown = (itemType: 'block' | 'exercise', itemId: string) => {
+    const currentIndex = layoutOrder.findIndex(item => item.type === itemType && item.id === itemId);
+    if (currentIndex < layoutOrder.length - 1) {
+      const newOrder = [...layoutOrder];
+      [newOrder[currentIndex], newOrder[currentIndex + 1]] = 
+        [newOrder[currentIndex + 1], newOrder[currentIndex]];
+      setLayoutOrder(newOrder);
+      toast({
+        title: `${itemType === 'block' ? 'Block' : 'Exercise'} moved down`,
+        description: "Item order updated",
+      });
+    }
+  };
+
+  const handleMoveExerciseInBlockUp = (exerciseId: string) => {
+    const exercise = exercises.find(ex => ex.id === exerciseId);
+    if (!exercise?.blockId) return;
+
+    const blockExercises = exercises
+      .filter(ex => ex.blockId === exercise.blockId)
+      .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+    
+    const currentIndex = blockExercises.findIndex(ex => ex.id === exerciseId);
+    if (currentIndex > 0) {
+      const targetExercise = blockExercises[currentIndex - 1];
+      const now = Date.now();
+      
+      // Swap timestamps to reorder
+      const updatedExercise = { ...exercise, timestamp: new Date(now - (blockExercises.length - currentIndex + 1) * 1000) };
+      const updatedTarget = { ...targetExercise, timestamp: new Date(now - (blockExercises.length - currentIndex) * 1000) };
+      
+      setExercises(prev => prev.map(ex => {
+        if (ex.id === exerciseId) return updatedExercise;
+        if (ex.id === targetExercise.id) return updatedTarget;
+        return ex;
+      }));
+      
+      toast({
+        title: "Exercise moved up",
+        description: "Exercise order updated within block",
+      });
+    }
+  };
+
+  const handleMoveExerciseInBlockDown = (exerciseId: string) => {
+    const exercise = exercises.find(ex => ex.id === exerciseId);
+    if (!exercise?.blockId) return;
+
+    const blockExercises = exercises
+      .filter(ex => ex.blockId === exercise.blockId)
+      .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+    
+    const currentIndex = blockExercises.findIndex(ex => ex.id === exerciseId);
+    if (currentIndex < blockExercises.length - 1) {
+      const targetExercise = blockExercises[currentIndex + 1];
+      const now = Date.now();
+      
+      // Swap timestamps to reorder
+      const updatedExercise = { ...exercise, timestamp: new Date(now - (blockExercises.length - currentIndex - 1) * 1000) };
+      const updatedTarget = { ...targetExercise, timestamp: new Date(now - (blockExercises.length - currentIndex) * 1000) };
+      
+      setExercises(prev => prev.map(ex => {
+        if (ex.id === exerciseId) return updatedExercise;
+        if (ex.id === targetExercise.id) return updatedTarget;
+        return ex;
+      }));
+      
+      toast({
+        title: "Exercise moved down",
+        description: "Exercise order updated within block",
+      });
+    }
+  };
+
+  const handleGroupExercise = (exerciseId: string, blockId: string) => {
+    const exercise = exercises.find(ex => ex.id === exerciseId);
+    if (!exercise) return;
+
+    const updatedExercise = { ...exercise, blockId };
+    setExercises(prev => prev.map(ex => ex.id === exerciseId ? updatedExercise : ex));
+    
+    // Remove from layout if it was standalone
+    if (!exercise.blockId) {
+      setLayoutOrder(prev => prev.filter(item => !(item.type === 'exercise' && item.id === exerciseId)));
+    }
+    
+    toast({
+      title: "Exercise grouped",
+      description: `Exercise moved to block`,
+    });
+  };
+
+  const handleUngroupExercise = (exerciseId: string) => {
+    const exercise = exercises.find(ex => ex.id === exerciseId);
+    if (!exercise?.blockId) return;
+
+    const updatedExercise = { ...exercise, blockId: undefined };
+    setExercises(prev => prev.map(ex => ex.id === exerciseId ? updatedExercise : ex));
+    
+    // Add to layout as standalone
+    setLayoutOrder(prev => [...prev, { type: 'exercise', id: exerciseId }]);
+    
+    toast({
+      title: "Exercise ungrouped",
+      description: "Exercise moved to standalone",
+    });
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8">
@@ -198,8 +320,12 @@ const Index = () => {
                 onAddBlock={handleAddBlock}
                 onUpdateBlock={handleUpdateBlock}
                 onRemoveBlock={handleRemoveBlock}
-                onReorderBlocks={handleReorderBlocks}
-                onReorderLayout={handleReorderLayout}
+                onMoveItemUp={handleMoveItemUp}
+                onMoveItemDown={handleMoveItemDown}
+                onMoveExerciseInBlockUp={handleMoveExerciseInBlockUp}
+                onMoveExerciseInBlockDown={handleMoveExerciseInBlockDown}
+                onGroupExercise={handleGroupExercise}
+                onUngroupExercise={handleUngroupExercise}
               />
             </TabsContent>
           </Tabs>

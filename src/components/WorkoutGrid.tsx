@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { ParsedExercise, WorkoutBlock } from '@/lib/exerciseParser';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';  
@@ -7,57 +7,33 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Trash2, Clock, Edit, RotateCcw, Zap, Target, Users, GripVertical, Plus, ChevronUp, ChevronDown, Link2Off } from 'lucide-react';
+import { Trash2, Edit, RotateCcw, Zap, Target, Users, Plus, ChevronUp, ChevronDown, Link2Off, Link2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  MouseSensor,
-  TouchSensor,
-  useSensor,
-  useSensors,
-  DragEndEvent,
-  DragOverEvent,
-  DragStartEvent,
-  DragOverlay,
-  useDndMonitor,
-  useDroppable,
-} from '@dnd-kit/core';
-import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
-import {
-  useSortable,
-} from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
 
-
-// Sortable Exercise Component
-function SortableExercise({ exercise, onEdit, onRemove, onUngroup }: { 
+// Exercise Component
+function ExerciseCard({ 
+  exercise, 
+  onEdit, 
+  onRemove, 
+  onUngroup,
+  onGroup,
+  onMoveUp,
+  onMoveDown,
+  canMoveUp,
+  canMoveDown,
+  showGroupButton = false
+}: { 
   exercise: ParsedExercise; 
   onEdit: (exercise: ParsedExercise) => void;
   onRemove: (id: string) => void;
-  onUngroup?: (exercise: ParsedExercise) => void;
+  onUngroup?: (exerciseId: string) => void;
+  onGroup?: (exerciseId: string) => void;
+  onMoveUp: (exerciseId: string) => void;
+  onMoveDown: (exerciseId: string) => void;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
+  showGroupButton?: boolean;
 }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: exercise.id });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  };
-
   const renderExerciseBadges = (exercise: ParsedExercise) => {
     const { parsedData } = exercise;
     const badges = [];
@@ -104,15 +80,10 @@ function SortableExercise({ exercise, onEdit, onRemove, onUngroup }: {
   };
 
   return (
-    <Card 
-      ref={setNodeRef}
-      style={style}
-      className="drag-handle overflow-hidden"
-    >
-      <CardContent className="p-0">
-        <div className="flex">
-          {/* Main content */}
-          <div className="flex-1 p-4">
+    <Card className="overflow-hidden">
+      <CardContent className="p-4">
+        <div className="flex items-start justify-between">
+          <div className="flex-1 min-w-0">
             <h4 className="font-medium text-base mb-3">{exercise.name}</h4>
             <div className="flex flex-wrap gap-2 mb-3">
               {renderExerciseBadges(exercise)}
@@ -120,51 +91,71 @@ function SortableExercise({ exercise, onEdit, onRemove, onUngroup }: {
             <p className="text-sm text-muted-foreground mb-4">
               {exercise.originalInput}
             </p>
-            
-            {/* Action bar */}
-            <div className="flex gap-2">
-              <Button
-                variant="default"
-                onClick={() => onEdit(exercise)}
-                className="h-11 px-4"
-              >
-                <Edit className="h-4 w-4" />
-              </Button>
-              {exercise.blockId && (
-                <Button
-                  variant="outline"
-                  onClick={() => onUngroup?.(exercise)}
-                  className="h-11 px-4"
-                >
-                  <Link2Off className="h-4 w-4" />
-                </Button>
-              )}
-              <Button
-                variant="destructive"
-                onClick={() => onRemove(exercise.id)}
-                className="h-11 px-4"
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </div>
           </div>
           
-          {/* Drag handle */}
-          <button
-            {...attributes}
-            {...listeners}
-            className="drag-grip cursor-grab active:cursor-grabbing w-16 hover:bg-muted/50 touch-none flex-shrink-0 flex items-center justify-center border-l border-border self-stretch transition-colors"
+          {/* Move buttons */}
+          <div className="flex gap-1 ml-3">
+            <Button
+              variant="outline"
+              onClick={() => onMoveUp(exercise.id)}
+              disabled={!canMoveUp}
+              className="h-11 px-4"
+            >
+              <ChevronUp className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => onMoveDown(exercise.id)}
+              disabled={!canMoveDown}
+              className="h-11 px-4"
+            >
+              <ChevronDown className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+        
+        {/* Action bar */}
+        <div className="flex gap-2">
+          <Button
+            variant="default"
+            onClick={() => onEdit(exercise)}
+            className="h-11 px-4"
           >
-            <GripVertical className="h-6 w-6 text-muted-foreground" />
-          </button>
+            <Edit className="h-4 w-4" />
+          </Button>
+          {exercise.blockId && onUngroup && (
+            <Button
+              variant="outline"
+              onClick={() => onUngroup(exercise.id)}
+              className="h-11 px-4"
+            >
+              <Link2Off className="h-4 w-4" />
+            </Button>
+          )}
+          {showGroupButton && onGroup && (
+            <Button
+              variant="outline"
+              onClick={() => onGroup(exercise.id)}
+              className="h-11 px-4"
+            >
+              <Link2 className="h-4 w-4" />
+            </Button>
+          )}
+          <Button
+            variant="destructive"
+            onClick={() => onRemove(exercise.id)}
+            className="h-11 px-4"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
         </div>
       </CardContent>
     </Card>
   );
 }
 
-// Droppable Block Container
-function DroppableBlock({
+// Block Component
+function BlockCard({
   block, 
   children, 
   onEdit, 
@@ -185,11 +176,6 @@ function DroppableBlock({
   canMoveDown: boolean;
   isEmpty?: boolean;
 }) {
-  const { setNodeRef, isOver } = useDroppable({
-    id: `block-${block.id}`,
-    data: { type: 'block', blockId: block.id }
-  });
-
   const getBlockIcon = (type: string) => {
     switch (type) {
       case 'round':
@@ -204,10 +190,7 @@ function DroppableBlock({
   };
 
   return (
-    <Card 
-      ref={setNodeRef}
-      className={`overflow-hidden transition-all ${isOver ? 'ring-2 ring-primary bg-primary/5' : ''}`}
-    >
+    <Card className="overflow-hidden">
       {/* Header */}
       <div className="p-4 pb-3">
         <div className="flex items-start justify-between">
@@ -270,7 +253,7 @@ function DroppableBlock({
           <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-8 text-center">
             <Plus className="h-8 w-8 mx-auto mb-2 text-muted-foreground/50" />
             <p className="text-sm text-muted-foreground">
-              Drag exercises here to group them
+              Use group button on exercises to add them to this block
             </p>
           </div>
         ) : (
@@ -290,8 +273,12 @@ interface WorkoutGridProps {
   onAddBlock: (block: WorkoutBlock) => void;
   onUpdateBlock: (block: WorkoutBlock) => void;
   onRemoveBlock: (id: string) => void;
-  onReorderBlocks: (blocks: WorkoutBlock[]) => void;
-  onReorderLayout: (layoutOrder: Array<{ type: 'block' | 'exercise', id: string }>) => void;
+  onMoveItemUp: (itemType: 'block' | 'exercise', itemId: string) => void;
+  onMoveItemDown: (itemType: 'block' | 'exercise', itemId: string) => void;
+  onMoveExerciseInBlockUp: (exerciseId: string) => void;
+  onMoveExerciseInBlockDown: (exerciseId: string) => void;
+  onGroupExercise: (exerciseId: string, blockId: string) => void;
+  onUngroupExercise: (exerciseId: string) => void;
 }
 
 export function WorkoutGrid({ 
@@ -303,162 +290,18 @@ export function WorkoutGrid({
   onAddBlock,
   onUpdateBlock,
   onRemoveBlock,
-  onReorderBlocks,
-  onReorderLayout
+  onMoveItemUp,
+  onMoveItemDown,
+  onMoveExerciseInBlockUp,
+  onMoveExerciseInBlockDown,
+  onGroupExercise,
+  onUngroupExercise
 }: WorkoutGridProps) {
   const { toast } = useToast();
   const [editingBlock, setEditingBlock] = useState<WorkoutBlock | null>(null);
   const [editingExercise, setEditingExercise] = useState<ParsedExercise | null>(null);
-  const [activeId, setActiveId] = useState<string | null>(null);
-
-  // Create containers with ordered items - now unified layout
-  const containers = useMemo(() => {
-    const result: Record<string, string[]> = {};
-    
-    // Add block containers
-    blocks.forEach(block => {
-      result[`block-${block.id}`] = exercises
-        .filter(ex => ex.blockId === block.id)
-        .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
-        .map(ex => ex.id);
-    });
-
-    return result;
-  }, [exercises, blocks]);
-
-  // Block IDs for sortable context - removed since we're not using drag-and-drop for blocks anymore
-
-  const sensors = useSensors(
-    useSensor(MouseSensor, {
-      activationConstraint: {
-        distance: 10,
-      },
-    }),
-    useSensor(TouchSensor, {
-      activationConstraint: {
-        delay: 250,
-        tolerance: 5,
-      },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  );
-
-  const findContainer = (id: string): string | null => {
-    for (const [containerId, items] of Object.entries(containers)) {
-      if (items.includes(id)) return containerId;
-    }
-    return null;
-  };
-
-  const handleDragStart = (event: DragStartEvent) => {
-    setActiveId(event.active.id as string);
-  };
-
-  const handleDragOver = (event: DragOverEvent) => {
-    const { active, over } = event;
-    if (!over) return;
-
-    const activeId = active.id as string;
-    const overId = over.id as string;
-
-    const activeContainer = findContainer(activeId);
-    const overContainer = over.data.current?.type === 'block' 
-      ? over.id as string
-      : findContainer(overId);
-
-    if (!activeContainer || !overContainer || activeContainer === overContainer) {
-      return;
-    }
-
-    // Move between containers
-    const activeExercise = exercises.find(ex => ex.id === activeId);
-    if (!activeExercise) return;
-
-    const targetBlockId = overContainer.startsWith('block-') ? overContainer.replace('block-', '') : undefined;
-    const updatedExercise = { ...activeExercise, blockId: targetBlockId };
-    onUpdateExercise(updatedExercise);
-  };
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    setActiveId(null);
-
-    if (!over) return;
-
-    const activeId = active.id as string;
-    const overId = over.id as string;
-
-    // Handle exercise reordering only
-    const activeContainer = findContainer(activeId);
-    const overContainer = over.data.current?.type === 'block' 
-      ? over.id as string
-      : findContainer(overId);
-
-    if (!activeContainer || !overContainer) return;
-
-    if (activeContainer === overContainer) {
-      // Reorder within same container
-      const containerItems = containers[activeContainer];
-      const oldIndex = containerItems.indexOf(activeId);
-      const newIndex = containerItems.indexOf(overId);
-
-      if (oldIndex !== newIndex) {
-        const reorderedItems = arrayMove(containerItems, oldIndex, newIndex);
-        
-        // Update timestamps to maintain order
-        const now = Date.now();
-        reorderedItems.forEach((exerciseId, index) => {
-          const exercise = exercises.find(ex => ex.id === exerciseId);
-          if (exercise) {
-            const updatedExercise = { 
-              ...exercise, 
-              timestamp: new Date(now - (reorderedItems.length - index) * 1000) 
-            };
-            onUpdateExercise(updatedExercise);
-          }
-        });
-
-        toast({
-          title: "Exercise reordered",
-          description: "Exercise order updated",
-        });
-      }
-    }
-  };
-
-  const activeExercise = exercises.find(ex => ex.id === activeId);
-
-  const handleMoveBlockUp = (blockId: string) => {
-    const currentIndex = layoutOrder.findIndex(item => item.type === 'block' && item.id === blockId);
-    if (currentIndex > 0) {
-      const newOrder = [...layoutOrder];
-      [newOrder[currentIndex - 1], newOrder[currentIndex]] = 
-        [newOrder[currentIndex], newOrder[currentIndex - 1]];
-      onReorderLayout(newOrder);
-      
-      toast({
-        title: "Block moved up",
-        description: "Block order updated",
-      });
-    }
-  };
-
-  const handleMoveBlockDown = (blockId: string) => {
-    const currentIndex = layoutOrder.findIndex(item => item.type === 'block' && item.id === blockId);
-    if (currentIndex < layoutOrder.length - 1) {
-      const newOrder = [...layoutOrder];
-      [newOrder[currentIndex], newOrder[currentIndex + 1]] = 
-        [newOrder[currentIndex + 1], newOrder[currentIndex]];
-      onReorderLayout(newOrder);
-      
-      toast({
-        title: "Block moved down",
-        description: "Block order updated",
-      });
-    }
-  };
+  const [groupingExercise, setGroupingExercise] = useState<string | null>(null);
+  const [newBlockName, setNewBlockName] = useState('New Block');
 
   const handleAddBlock = () => {
     const newBlock: WorkoutBlock = {
@@ -502,49 +345,33 @@ export function WorkoutGrid({
     });
   };
 
-  const renderExerciseBadges = (exercise: ParsedExercise) => {
-    const { parsedData } = exercise;
-    const badges = [];
+  const handleGroupExercise = (exerciseId: string) => {
+    setGroupingExercise(exerciseId);
+  };
+
+  const handleConfirmGroup = (blockId: string) => {
+    if (!groupingExercise) return;
+    onGroupExercise(groupingExercise, blockId);
+    setGroupingExercise(null);
+    setNewBlockName('New Block');
+  };
+
+  const handleCreateNewBlockAndGroup = () => {
+    if (!groupingExercise) return;
     
-    if (parsedData.sets && parsedData.reps) {
-      badges.push(
-        <Badge key="sets" variant="outline" className="text-xs">
-          {parsedData.sets} × {parsedData.reps}
-        </Badge>
-      );
-    }
+    const newBlock: WorkoutBlock = {
+      id: `block-${Date.now()}`,
+      name: newBlockName,
+      type: 'superset',
+      exercises: [],
+      rounds: 1,
+      restBetweenExercises: '30s'
+    };
     
-    if (parsedData.progressiveWeights && parsedData.progressiveWeights.length > 0) {
-      badges.push(
-        <Badge key="progressive-weights" variant="secondary" className="text-xs">
-          {parsedData.progressiveWeights.join(' → ')}
-        </Badge>
-      );
-    } else if (parsedData.weight) {
-      badges.push(
-        <Badge key="weight" variant="secondary" className="text-xs">
-          {parsedData.weight}
-        </Badge>
-      );
-    }
-    
-    if (parsedData.time) {
-      badges.push(
-        <Badge key="time" variant="outline" className="text-xs">
-          {parsedData.time}
-        </Badge>
-      );
-    }
-    
-    if (parsedData.restPeriod) {
-      badges.push(
-        <Badge key="rest" variant="outline" className="text-xs">
-          Rest: {parsedData.restPeriod}
-        </Badge>
-      );
-    }
-    
-    return badges;
+    onAddBlock(newBlock);
+    onGroupExercise(groupingExercise, newBlock.id);
+    setGroupingExercise(null);
+    setNewBlockName('New Block');
   };
 
   if (exercises.length === 0) {
@@ -554,7 +381,7 @@ export function WorkoutGrid({
           <Users className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
           <h3 className="text-lg font-medium mb-2">No exercises to organize</h3>
           <p className="text-muted-foreground">
-            Add some exercises first, then drag them together to create blocks.
+            Add some exercises first, then use the group buttons to organize them into blocks.
           </p>
         </CardContent>
       </Card>
@@ -562,102 +389,142 @@ export function WorkoutGrid({
   }
 
   return (
-    <DndContext 
-      sensors={sensors}
-      collisionDetection={closestCenter}
-      onDragStart={handleDragStart}
-      onDragOver={handleDragOver}
-      onDragEnd={handleDragEnd}
-    >
-      <div className="w-full max-w-6xl space-y-6">
-        {/* Toolbar */}
-        <div className="flex justify-between items-center">
-          <h2 className="text-lg font-semibold">Workout Structure</h2>
-          <Button onClick={handleAddBlock} className="gap-2">
-            <Plus className="h-4 w-4" />
-            Add Block
-          </Button>
-        </div>
+    <div className="w-full max-w-6xl space-y-6">
+      {/* Toolbar */}
+      <div className="flex justify-between items-center">
+        <h2 className="text-lg font-semibold">Workout Structure</h2>
+        <Button onClick={handleAddBlock} className="gap-2">
+          <Plus className="h-4 w-4" />
+          Add Block
+        </Button>
+      </div>
 
-        {/* Unified Layout */}
-        {layoutOrder.map((item, index) => {
-          if (item.type === 'block') {
-            const block = blocks.find(b => b.id === item.id);
-            if (!block) return null;
-            
-            const blockExercises = exercises.filter(ex => ex.blockId === block.id)
-              .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-            const containerId = `block-${block.id}`;
-            
-            return (
-              <DroppableBlock
-                key={block.id}
-                block={block}
-                onEdit={handleBlockEdit}
-                onRemove={onRemoveBlock}
-                onMoveUp={handleMoveBlockUp}
-                onMoveDown={handleMoveBlockDown}
-                canMoveUp={index > 0}
-                canMoveDown={index < layoutOrder.length - 1}
-                isEmpty={blockExercises.length === 0}
-              >
-                <SortableContext items={containers[containerId] || []} strategy={verticalListSortingStrategy}>
-                  <div className="space-y-3">
-                    {blockExercises.map(exercise => (
-                      <SortableExercise
-                        key={exercise.id}
-                        exercise={exercise}
-                        onEdit={handleExerciseEdit}
-                        onRemove={onRemoveExercise}
-                        onUngroup={(ex) => onUpdateExercise({ ...ex, blockId: undefined })}
-                      />
-                    ))}
-                  </div>
-                </SortableContext>
-              </DroppableBlock>
-            );
-          } else {
-            // Standalone exercise
-            const exercise = exercises.find(ex => ex.id === item.id);
-            if (!exercise || exercise.blockId) return null;
-            
-            return (
-              <SortableExercise
-                key={exercise.id}
-                exercise={exercise}
-                onEdit={handleExerciseEdit}
-                onRemove={onRemoveExercise}
-              />
-            );
-          }
-        })}
+      {/* Unified Layout */}
+      {layoutOrder.map((item, index) => {
+        if (item.type === 'block') {
+          const block = blocks.find(b => b.id === item.id);
+          if (!block) return null;
+          
+          const blockExercises = exercises.filter(ex => ex.blockId === block.id)
+            .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+          
+          return (
+            <BlockCard
+              key={block.id}
+              block={block}
+              onEdit={handleBlockEdit}
+              onRemove={onRemoveBlock}
+              onMoveUp={(id) => onMoveItemUp('block', id)}
+              onMoveDown={(id) => onMoveItemDown('block', id)}
+              canMoveUp={index > 0}
+              canMoveDown={index < layoutOrder.length - 1}
+              isEmpty={blockExercises.length === 0}
+            >
+              <div className="space-y-3">
+                {blockExercises.map((exercise, exerciseIndex) => (
+                  <ExerciseCard
+                    key={exercise.id}
+                    exercise={exercise}
+                    onEdit={handleExerciseEdit}
+                    onRemove={onRemoveExercise}
+                    onUngroup={onUngroupExercise}
+                    onMoveUp={onMoveExerciseInBlockUp}
+                    onMoveDown={onMoveExerciseInBlockDown}
+                    canMoveUp={exerciseIndex > 0}
+                    canMoveDown={exerciseIndex < blockExercises.length - 1}
+                  />
+                ))}
+              </div>
+            </BlockCard>
+          );
+        } else {
+          // Standalone exercise
+          const exercise = exercises.find(ex => ex.id === item.id);
+          if (!exercise || exercise.blockId) return null;
+          
+          return (
+            <ExerciseCard
+              key={exercise.id}
+              exercise={exercise}
+              onEdit={handleExerciseEdit}
+              onRemove={onRemoveExercise}
+              onGroup={handleGroupExercise}
+              onMoveUp={(id) => onMoveItemUp('exercise', id)}
+              onMoveDown={(id) => onMoveItemDown('exercise', id)}
+              canMoveUp={index > 0}
+              canMoveDown={index < layoutOrder.length - 1}
+              showGroupButton={true}
+            />
+          );
+        }
+      })}
 
-        <div className="text-sm text-muted-foreground bg-muted/50 p-4 rounded-lg">
-          <div className="font-medium mb-2">How to use:</div>
-          <div className="space-y-1">
-            <div>• Drag exercises by their grip handles to reorder within blocks</div>
-            <div>• Drag exercises into blocks to group them</div>
-            <div>• Use up/down arrows to reorder blocks in the layout</div>
-            <div>• Use "Add Block" button to create new blocks</div>
-            <div>• Use "Ungroup" to remove exercises from blocks</div>
-            <div>• Tap edit button to modify exercise or block parameters</div>
-          </div>
+      <div className="text-sm text-muted-foreground bg-muted/50 p-4 rounded-lg">
+        <div className="font-medium mb-2">How to use:</div>
+        <div className="space-y-1">
+          <div>• Use up/down arrows to reorder items</div>
+          <div>• Use "Group" button on standalone exercises to add them to blocks</div>
+          <div>• Use "Ungroup" button to remove exercises from blocks</div>
+          <div>• Use "Add Block" button to create new blocks</div>
+          <div>• Use edit button to modify exercise or block parameters</div>
         </div>
       </div>
 
-      {/* Drag Overlay */}
-      <DragOverlay>
-        {activeExercise ? (
-          <Card className="opacity-90 rotate-3 scale-105 shadow-lg">
-            <CardContent className="p-3">
-              <div className="flex items-center gap-2">
-                <GripVertical className="h-4 w-4 text-muted-foreground" />
-                <h4 className="font-medium text-sm">{activeExercise.name}</h4>
+      {/* Grouping Dialog */}
+      <Dialog open={!!groupingExercise} onOpenChange={() => setGroupingExercise(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Group Exercise</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Choose an existing block or create a new one:</Label>
+            </div>
+            
+            {blocks.length > 0 && (
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Existing Blocks:</Label>
+                <div className="grid gap-2">
+                  {blocks.map(block => (
+                    <Button
+                      key={block.id}
+                      variant="outline"
+                      onClick={() => handleConfirmGroup(block.id)}
+                      className="justify-start h-auto p-3"
+                    >
+                      <div className="flex items-center gap-2">
+                        {block.type === 'round' && <RotateCcw className="h-4 w-4" />}
+                        {block.type === 'superset' && <Zap className="h-4 w-4" />}
+                        {block.type === 'circuit' && <Target className="h-4 w-4" />}
+                        <div className="text-left">
+                          <div className="font-medium">{block.name}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {block.type} • {exercises.filter(ex => ex.blockId === block.id).length} exercises
+                          </div>
+                        </div>
+                      </div>
+                    </Button>
+                  ))}
+                </div>
               </div>
-            </CardContent>
-          </Card>
-        ) : null}
-      </DragOverlay>
+            )}
+            
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Create New Block:</Label>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Block name"
+                  value={newBlockName}
+                  onChange={(e) => setNewBlockName(e.target.value)}
+                />
+                <Button onClick={handleCreateNewBlockAndGroup}>
+                  Create & Group
+                </Button>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Block Edit Dialog */}
       <Dialog open={!!editingBlock} onOpenChange={() => setEditingBlock(null)}>
@@ -864,6 +731,6 @@ export function WorkoutGrid({
           )}
         </DialogContent>
       </Dialog>
-    </DndContext>
+    </div>
   );
 }
