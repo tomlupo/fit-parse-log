@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Trash2, Clock, Edit, RotateCcw, Zap, Target, Users, GripVertical, Plus } from 'lucide-react';
+import { Trash2, Clock, Edit, RotateCcw, Zap, Target, Users, GripVertical, Plus, ChevronUp, ChevronDown } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   DndContext,
@@ -162,29 +162,25 @@ function DroppableBlock({
   children, 
   onEdit, 
   onRemove,
+  onMoveUp,
+  onMoveDown,
+  canMoveUp,
+  canMoveDown,
   isEmpty = false 
 }: { 
   block: WorkoutBlock; 
   children: React.ReactNode;
   onEdit: (block: WorkoutBlock) => void;
   onRemove: (id: string) => void;
+  onMoveUp: (id: string) => void;
+  onMoveDown: (id: string) => void;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
   isEmpty?: boolean;
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: `block-${block.id}`,
     data: { type: 'block', blockId: block.id }
-  });
-
-  const {
-    attributes: blockAttributes,
-    listeners: blockListeners,
-    setNodeRef: setBlockDragRef,
-    transform: blockTransform,
-    transition: blockTransition,
-    isDragging: isBlockDragging,
-  } = useSortable({ 
-    id: `block-${block.id}`,
-    data: { type: 'block' }
   });
 
   const getBlockIcon = (type: string) => {
@@ -200,30 +196,13 @@ function DroppableBlock({
     }
   };
 
-  const blockStyle = {
-    transform: CSS.Transform.toString(blockTransform),
-    transition: blockTransition,
-    opacity: isBlockDragging ? 0.5 : 1,
-  };
-
   return (
     <Card 
-      ref={(node) => {
-        setNodeRef(node);
-        setBlockDragRef(node);
-      }}
-      style={blockStyle}
+      ref={setNodeRef}
       className={`p-4 transition-all ${isOver ? 'ring-2 ring-primary bg-primary/5' : ''}`}
     >
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <button
-            {...blockAttributes}
-            {...blockListeners}
-            className="cursor-grab active:cursor-grabbing p-1 hover:bg-muted rounded touch-none"
-          >
-            <GripVertical className="h-4 w-4 text-muted-foreground" />
-          </button>
           {getBlockIcon(block.type)}
           <h3 className="font-semibold">{block.name}</h3>
           <Badge variant="outline">{block.type}</Badge>
@@ -232,6 +211,26 @@ function DroppableBlock({
           )}
         </div>
         <div className="flex gap-2">
+          <div className="flex flex-col">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onMoveUp(block.id)}
+              disabled={!canMoveUp}
+              className="h-6 px-2"
+            >
+              <ChevronUp className="h-3 w-3" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onMoveDown(block.id)}
+              disabled={!canMoveDown}
+              className="h-6 px-2"
+            >
+              <ChevronDown className="h-3 w-3" />
+            </Button>
+          </div>
           <Button
             variant="ghost"
             size="icon"
@@ -308,8 +307,7 @@ export function WorkoutGrid({
     return result;
   }, [exercises, blocks]);
 
-  // Block IDs for sortable context
-  const blockIds = useMemo(() => blocks.map(block => `block-${block.id}`), [blocks]);
+  // Block IDs for sortable context - removed since we're not using drag-and-drop for blocks anymore
 
   const sensors = useSensors(
     useSensor(MouseSensor, {
@@ -335,10 +333,6 @@ export function WorkoutGrid({
       if (items.includes(id)) return containerId;
     }
     return null;
-  };
-
-  const isBlock = (id: string): boolean => {
-    return blocks.some(block => `block-${block.id}` === id);
   };
 
   const handleDragStart = (event: DragStartEvent) => {
@@ -379,24 +373,7 @@ export function WorkoutGrid({
     const activeId = active.id as string;
     const overId = over.id as string;
 
-    // Handle block reordering
-    if (isBlock(activeId) && isBlock(overId)) {
-      const oldIndex = blockIds.indexOf(activeId);
-      const newIndex = blockIds.indexOf(overId);
-      
-      if (oldIndex !== newIndex) {
-        const reorderedBlocks = arrayMove(blocks, oldIndex, newIndex);
-        onReorderBlocks(reorderedBlocks);
-        
-        toast({
-          title: "Block reordered",
-          description: "Block order updated",
-        });
-      }
-      return;
-    }
-
-    // Handle exercise reordering
+    // Handle exercise reordering only
     const activeContainer = findContainer(activeId);
     const overContainer = over.data.current?.type === 'block' 
       ? over.id as string
@@ -436,6 +413,35 @@ export function WorkoutGrid({
 
   const activeExercise = exercises.find(ex => ex.id === activeId);
 
+  const handleMoveBlockUp = (blockId: string) => {
+    const currentIndex = blocks.findIndex(block => block.id === blockId);
+    if (currentIndex > 0) {
+      const reorderedBlocks = [...blocks];
+      [reorderedBlocks[currentIndex - 1], reorderedBlocks[currentIndex]] = 
+        [reorderedBlocks[currentIndex], reorderedBlocks[currentIndex - 1]];
+      onReorderBlocks(reorderedBlocks);
+      
+      toast({
+        title: "Block moved up",
+        description: "Block order updated",
+      });
+    }
+  };
+
+  const handleMoveBlockDown = (blockId: string) => {
+    const currentIndex = blocks.findIndex(block => block.id === blockId);
+    if (currentIndex < blocks.length - 1) {
+      const reorderedBlocks = [...blocks];
+      [reorderedBlocks[currentIndex], reorderedBlocks[currentIndex + 1]] = 
+        [reorderedBlocks[currentIndex + 1], reorderedBlocks[currentIndex]];
+      onReorderBlocks(reorderedBlocks);
+      
+      toast({
+        title: "Block moved down",
+        description: "Block order updated",
+      });
+    }
+  };
 
   const handleAddBlock = () => {
     const newBlock: WorkoutBlock = {
@@ -557,36 +563,38 @@ export function WorkoutGrid({
         </div>
 
         {/* Blocks */}
-        <SortableContext items={blockIds} strategy={verticalListSortingStrategy}>
-          {blocks.map(block => {
-            const blockExercises = exercises.filter(ex => ex.blockId === block.id)
-              .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-            const containerId = `block-${block.id}`;
-            
-            return (
-              <DroppableBlock
-                key={block.id}
-                block={block}
-                onEdit={handleBlockEdit}
-                onRemove={onRemoveBlock}
-                isEmpty={blockExercises.length === 0}
-              >
-                <SortableContext items={containers[containerId] || []} strategy={verticalListSortingStrategy}>
-                  <div className="space-y-3">
-                    {blockExercises.map(exercise => (
-                      <SortableExercise
-                        key={exercise.id}
-                        exercise={exercise}
-                        onEdit={handleExerciseEdit}
-                        onRemove={onRemoveExercise}
-                      />
-                    ))}
-                  </div>
-                </SortableContext>
-              </DroppableBlock>
-            );
-          })}
-        </SortableContext>
+        {blocks.map((block, index) => {
+          const blockExercises = exercises.filter(ex => ex.blockId === block.id)
+            .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+          const containerId = `block-${block.id}`;
+          
+          return (
+            <DroppableBlock
+              key={block.id}
+              block={block}
+              onEdit={handleBlockEdit}
+              onRemove={onRemoveBlock}
+              onMoveUp={handleMoveBlockUp}
+              onMoveDown={handleMoveBlockDown}
+              canMoveUp={index > 0}
+              canMoveDown={index < blocks.length - 1}
+              isEmpty={blockExercises.length === 0}
+            >
+              <SortableContext items={containers[containerId] || []} strategy={verticalListSortingStrategy}>
+                <div className="space-y-3">
+                  {blockExercises.map(exercise => (
+                    <SortableExercise
+                      key={exercise.id}
+                      exercise={exercise}
+                      onEdit={handleExerciseEdit}
+                      onRemove={onRemoveExercise}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </DroppableBlock>
+          );
+        })}
 
         {/* Unassigned Exercises */}
         {containers.unassigned.length > 0 && (
@@ -615,7 +623,7 @@ export function WorkoutGrid({
           <div className="space-y-1">
             <div>• Drag exercises by their grip handles to reorder</div>
             <div>• Drag exercises into blocks to group them</div>
-            <div>• Drag blocks by their grip handles to reorder blocks</div>
+            <div>• Use up/down arrows to reorder blocks</div>
             <div>• Use "Add Block" button to create new blocks</div>
             <div>• Tap edit button to modify exercise or block parameters</div>
           </div>
