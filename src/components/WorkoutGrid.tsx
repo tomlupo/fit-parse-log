@@ -38,7 +38,9 @@ export function WorkoutGrid({
   const [editingExercise, setEditingExercise] = useState<ParsedExercise | null>(null);
 
   // Get exercises not in any block
-  const unassignedExercises = exercises.filter(ex => !ex.blockId);
+  const unassignedExercises = React.useMemo(() =>
+    [...exercises.filter(ex => !ex.blockId)].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
+  , [exercises]);
 
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -348,7 +350,7 @@ export function WorkoutGrid({
       <div className="w-full max-w-6xl space-y-6" style={{ touchAction: 'manipulation' }}>
         {/* Blocks */}
         {blocks.map(block => {
-          const blockExercises = exercises.filter(ex => ex.blockId === block.id);
+          const blockExercises = [...exercises.filter(ex => ex.blockId === block.id)].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
           const isDropTarget = dropTarget === block.id;
           
           return (

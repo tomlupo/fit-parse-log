@@ -139,7 +139,7 @@ export function WorkoutSession({ exercises, blocks, onRemoveExercise, onClearSes
             <Target className="h-4 w-4" />
             <span>Individual Exercises</span>
           </div>
-          {blockExercises.map(renderExerciseCard)}
+          {[...blockExercises].sort((a,b) => a.timestamp.getTime() - b.timestamp.getTime()).map(renderExerciseCard)}
         </div>
       );
     }
@@ -173,7 +173,7 @@ export function WorkoutSession({ exercises, blocks, onRemoveExercise, onClearSes
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {blockExercises.map(renderExerciseCard)}
+          {[...blockExercises].sort((a,b) => a.timestamp.getTime() - b.timestamp.getTime()).map(renderExerciseCard)}
         </CardContent>
       </Card>
     );
