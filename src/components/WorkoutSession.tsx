@@ -8,11 +8,9 @@ import { ParsedExercise, WorkoutBlock } from '@/lib/exerciseParser';
 interface WorkoutSessionProps {
   exercises: ParsedExercise[];
   blocks: WorkoutBlock[];
-  onRemoveExercise: (id: string) => void;
-  onClearSession: () => void;
 }
 
-export function WorkoutSession({ exercises, blocks, onRemoveExercise, onClearSession }: WorkoutSessionProps) {
+export function WorkoutSession({ exercises, blocks }: WorkoutSessionProps) {
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
@@ -31,22 +29,12 @@ export function WorkoutSession({ exercises, blocks, onRemoveExercise, onClearSes
     return (
       <Card key={exercise.id} className="transition-transform hover:scale-[1.02]">
         <CardContent className="p-4">
-          <div className="flex items-start justify-between mb-3">
-            <div>
-              <h3 className="font-semibold text-lg text-foreground">{exercise.name}</h3>
-              <p className="text-sm text-muted-foreground flex items-center gap-1">
-                <Clock className="h-3 w-3" />
-                {formatTime(exercise.timestamp)}
-              </p>
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => onRemoveExercise(exercise.id)}
-              className="text-muted-foreground hover:text-destructive"
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
+          <div className="mb-3">
+            <h3 className="font-semibold text-lg text-foreground">{exercise.name}</h3>
+            <p className="text-sm text-muted-foreground flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              {formatTime(exercise.timestamp)}
+            </p>
           </div>
           
           <div className="flex flex-wrap gap-2 mb-3">
@@ -183,14 +171,9 @@ export function WorkoutSession({ exercises, blocks, onRemoveExercise, onClearSes
     <div className="w-full max-w-2xl space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              Today's Workout
-            </div>
-            <Button variant="outline" size="sm" onClick={onClearSession}>
-              Clear All
-            </Button>
+          <CardTitle className="flex items-center gap-2">
+            <Calendar className="h-5 w-5" />
+            Today's Workout
           </CardTitle>
         </CardHeader>
         <CardContent className="pb-4">

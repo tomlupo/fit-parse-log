@@ -293,11 +293,11 @@ const Index = () => {
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="list" className="flex items-center gap-2">
                 <List className="h-4 w-4" />
-                List View
+                Preview
               </TabsTrigger>
               <TabsTrigger value="flow" className="flex items-center gap-2">
                 <Workflow className="h-4 w-4" />
-                Grid View
+                Edit
               </TabsTrigger>
             </TabsList>
             
@@ -305,8 +305,6 @@ const Index = () => {
               <WorkoutSession 
                 exercises={exercises}
                 blocks={blocks}
-                onRemoveExercise={handleRemoveExercise}
-                onClearSession={handleClearSession}
               />
             </TabsContent>
             
