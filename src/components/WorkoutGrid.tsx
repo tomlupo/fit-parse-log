@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Trash2, Clock, Edit, RotateCcw, Zap, Target, Users, GripVertical, Plus, ChevronUp, ChevronDown } from 'lucide-react';
+import { Trash2, Clock, Edit, RotateCcw, Zap, Target, Users, GripVertical, Plus, ChevronUp, ChevronDown, Link2Off } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
   DndContext,
@@ -37,10 +37,11 @@ import { CSS } from '@dnd-kit/utilities';
 
 
 // Sortable Exercise Component
-function SortableExercise({ exercise, onEdit, onRemove }: { 
+function SortableExercise({ exercise, onEdit, onRemove, onUngroup }: { 
   exercise: ParsedExercise; 
   onEdit: (exercise: ParsedExercise) => void;
   onRemove: (id: string) => void;
+  onUngroup?: (exercise: ParsedExercise) => void;
 }) {
   const {
     attributes,
@@ -131,6 +132,17 @@ function SortableExercise({ exercise, onEdit, onRemove }: {
                 <Edit className="h-4 w-4 mr-2" />
                 Edit
               </Button>
+              {exercise.blockId && (
+                <Button
+                  variant="outline"
+                  size="lg"
+                  onClick={() => onUngroup?.(exercise)}
+                  className="h-11 px-4"
+                >
+                  <Link2Off className="h-4 w-4 mr-2" />
+                  Ungroup
+                </Button>
+              )}
               <Button
                 variant="destructive"
                 size="lg"
@@ -627,6 +639,7 @@ export function WorkoutGrid({
                       exercise={exercise}
                       onEdit={handleExerciseEdit}
                       onRemove={onRemoveExercise}
+                      onUngroup={(ex) => onUpdateExercise({ ...ex, blockId: undefined })}
                     />
                   ))}
                 </div>
