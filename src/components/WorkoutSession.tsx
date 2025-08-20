@@ -2,16 +2,17 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Trash2, Clock, Calendar, Target } from 'lucide-react';
-import { ParsedExercise } from '@/lib/exerciseParser';
+import { Trash2, Clock, Calendar, Target, RotateCcw, Layers, Timer } from 'lucide-react';
+import { ParsedExercise, WorkoutBlock } from '@/lib/exerciseParser';
 
 interface WorkoutSessionProps {
   exercises: ParsedExercise[];
+  blocks: WorkoutBlock[];
   onRemoveExercise: (id: string) => void;
   onClearSession: () => void;
 }
 
-export function WorkoutSession({ exercises, onRemoveExercise, onClearSession }: WorkoutSessionProps) {
+export function WorkoutSession({ exercises, blocks, onRemoveExercise, onClearSession }: WorkoutSessionProps) {
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
@@ -110,6 +111,74 @@ export function WorkoutSession({ exercises, onRemoveExercise, onClearSession }: 
     );
   }
 
+  const getBlockIcon = (type: string) => {
+    switch (type) {
+      case 'superset': return <Layers className="h-4 w-4" />;
+      case 'circuit': return <RotateCcw className="h-4 w-4" />;
+      case 'rounds': return <Target className="h-4 w-4" />;
+      default: return <Target className="h-4 w-4" />;
+    }
+  };
+
+  const groupedExercises = exercises.reduce((acc, exercise) => {
+    const blockId = exercise.blockId || 'unassigned';
+    if (!acc[blockId]) {
+      acc[blockId] = [];
+    }
+    acc[blockId].push(exercise);
+    return acc;
+  }, {} as Record<string, ParsedExercise[]>);
+
+  const renderBlockSection = (blockId: string, blockExercises: ParsedExercise[]) => {
+    const block = blocks.find(b => b.id === blockId);
+    
+    if (blockId === 'unassigned') {
+      return (
+        <div key="unassigned" className="space-y-3">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Target className="h-4 w-4" />
+            <span>Individual Exercises</span>
+          </div>
+          {blockExercises.map(renderExerciseCard)}
+        </div>
+      );
+    }
+
+    if (!block) return null;
+
+    return (
+      <Card key={blockId} className="border-2 border-primary/20">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center justify-between text-lg">
+            <div className="flex items-center gap-2">
+              {getBlockIcon(block.type)}
+              {block.name}
+            </div>
+            <div className="flex gap-2">
+              <Badge variant="outline" className="text-xs">
+                {block.type}
+              </Badge>
+              {block.rounds && (
+                <Badge variant="secondary" className="text-xs">
+                  {block.rounds} rounds
+                </Badge>
+              )}
+              {block.restBetweenExercises && (
+                <Badge variant="outline" className="text-xs flex items-center gap-1">
+                  <Timer className="h-3 w-3" />
+                  {block.restBetweenExercises}
+                </Badge>
+              )}
+            </div>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {blockExercises.map(renderExerciseCard)}
+        </CardContent>
+      </Card>
+    );
+  };
+
   return (
     <div className="w-full max-w-2xl space-y-4">
       <Card>
@@ -145,8 +214,10 @@ export function WorkoutSession({ exercises, onRemoveExercise, onClearSession }: 
         </CardContent>
       </Card>
       
-      <div className="space-y-3">
-        {exercises.map(renderExerciseCard)}
+      <div className="space-y-4">
+        {Object.entries(groupedExercises).map(([blockId, blockExercises]) =>
+          renderBlockSection(blockId, blockExercises)
+        )}
       </div>
     </div>
   );

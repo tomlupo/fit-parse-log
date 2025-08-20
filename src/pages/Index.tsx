@@ -10,8 +10,48 @@ import { List, Workflow } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 const Index = () => {
-  const [exercises, setExercises] = useState<ParsedExercise[]>([]);
-  const [blocks, setBlocks] = useState<WorkoutBlock[]>([]);
+  // Default exercises for testing
+  const defaultExercises: ParsedExercise[] = [
+    {
+      id: '1',
+      name: 'Bench Press',
+      originalInput: 'Bench Press 3x8 80kg',
+      parsedData: {
+        sets: 3,
+        reps: 8,
+        weight: '80kg',
+        type: 'strength'
+      },
+      timestamp: new Date(Date.now() - 300000), // 5 minutes ago
+      blockId: 'block1'
+    },
+    {
+      id: '2', 
+      name: 'Push-ups',
+      originalInput: 'Push-ups 3x15',
+      parsedData: {
+        sets: 3,
+        reps: 15,
+        type: 'strength'
+      },
+      timestamp: new Date(Date.now() - 240000), // 4 minutes ago
+      blockId: 'block1'
+    }
+  ];
+
+  const defaultBlocks: WorkoutBlock[] = [
+    {
+      id: 'block1',
+      name: 'Upper Body Strength',
+      type: 'superset',
+      exercises: ['1', '2'],
+      rounds: 3,
+      restBetweenExercises: '2min'
+    }
+  ];
+
+  const [exercises, setExercises] = useState<ParsedExercise[]>(defaultExercises);
+  const [blocks, setBlocks] = useState<WorkoutBlock[]>(defaultBlocks);
   const { toast } = useToast();
 
   const handleAddExercise = (exercise: ParsedExercise) => {
@@ -94,6 +134,7 @@ const Index = () => {
             <TabsContent value="list" className="flex justify-center">
               <WorkoutSession 
                 exercises={exercises}
+                blocks={blocks}
                 onRemoveExercise={handleRemoveExercise}
                 onClearSession={handleClearSession}
               />
