@@ -57,10 +57,6 @@ function SortableExercise({ exercise, onEdit, onRemove }: {
     opacity: isDragging ? 0.5 : 1,
   };
 
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
-
   const renderExerciseBadges = (exercise: ParsedExercise) => {
     const { parsedData } = exercise;
     const badges = [];
@@ -110,45 +106,49 @@ function SortableExercise({ exercise, onEdit, onRemove }: {
     <Card 
       ref={setNodeRef}
       style={style}
-      className="drag-handle"
+      className="drag-handle overflow-hidden"
     >
-      <CardContent className="p-0 relative">
-        <div className="flex min-h-[120px]">
-          <div className="flex items-start gap-3 p-3 flex-1">
-            <div className="flex flex-col gap-2">
+      <CardContent className="p-0">
+        <div className="flex">
+          {/* Main content */}
+          <div className="flex-1 p-4">
+            <h4 className="font-medium text-base mb-3">{exercise.name}</h4>
+            <div className="flex flex-wrap gap-2 mb-3">
+              {renderExerciseBadges(exercise)}
+            </div>
+            <p className="text-sm text-muted-foreground mb-4">
+              {exercise.originalInput}
+            </p>
+            
+            {/* Action bar */}
+            <div className="flex gap-2">
               <Button
-                variant="ghost"
+                variant="default"
                 size="lg"
                 onClick={() => onEdit(exercise)}
-                className="h-12 w-12 p-0"
+                className="flex-1 h-11"
               >
-                <Edit className="h-6 w-6" />
+                <Edit className="h-4 w-4 mr-2" />
+                Edit
               </Button>
               <Button
-                variant="ghost"
+                variant="destructive"
                 size="lg"
                 onClick={() => onRemove(exercise.id)}
-                className="h-12 w-12 p-0"
+                className="h-11 px-4"
               >
-                <Trash2 className="h-6 w-6" />
+                <Trash2 className="h-4 w-4" />
               </Button>
             </div>
-            <div className="flex-1">
-              <h4 className="font-medium text-sm mb-3">{exercise.name}</h4>
-              <div className="flex flex-wrap gap-1 mb-2">
-                {renderExerciseBadges(exercise)}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {exercise.originalInput}
-              </p>
-            </div>
           </div>
+          
+          {/* Drag handle */}
           <button
             {...attributes}
             {...listeners}
-            className="drag-grip cursor-grab active:cursor-grabbing w-16 hover:bg-muted touch-none flex-shrink-0 flex items-center justify-center border-l border-border self-stretch"
+            className="drag-grip cursor-grab active:cursor-grabbing w-16 hover:bg-muted/50 touch-none flex-shrink-0 flex items-center justify-center border-l border-border self-stretch transition-colors"
           >
-            <GripVertical className="h-8 w-8 text-muted-foreground" />
+            <GripVertical className="h-6 w-6 text-muted-foreground" />
           </button>
         </div>
       </CardContent>
@@ -199,65 +199,82 @@ function DroppableBlock({
   return (
     <Card 
       ref={setNodeRef}
-      className={`p-4 transition-all ${isOver ? 'ring-2 ring-primary bg-primary/5' : ''}`}
+      className={`overflow-hidden transition-all ${isOver ? 'ring-2 ring-primary bg-primary/5' : ''}`}
     >
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          {getBlockIcon(block.type)}
-          <h3 className="font-semibold">{block.name}</h3>
-          <Badge variant="outline">{block.type}</Badge>
-          {block.rounds && (
-            <Badge variant="secondary">{block.rounds} rounds</Badge>
-          )}
-        </div>
-        <div className="flex gap-2">
-          <div className="flex flex-col">
+      {/* Header */}
+      <div className="p-4 pb-3">
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            {getBlockIcon(block.type)}
+            <div className="flex-1 min-w-0">
+              <h3 className="font-semibold text-lg truncate">{block.name}</h3>
+              <div className="flex flex-wrap gap-2 mt-1">
+                <Badge variant="outline">{block.type}</Badge>
+                {block.rounds && (
+                  <Badge variant="secondary">{block.rounds} rounds</Badge>
+                )}
+              </div>
+            </div>
+          </div>
+          
+          {/* Move buttons */}
+          <div className="flex gap-1 ml-3">
             <Button
-              variant="ghost"
-              size="sm"
+              variant="outline"
+              size="lg"
               onClick={() => onMoveUp(block.id)}
               disabled={!canMoveUp}
-              className="h-6 px-2"
+              className="h-11 w-11 p-0 flex-shrink-0"
             >
-              <ChevronUp className="h-3 w-3" />
+              <ChevronUp className="h-5 w-5" />
             </Button>
             <Button
-              variant="ghost"
-              size="sm"
+              variant="outline"
+              size="lg"
               onClick={() => onMoveDown(block.id)}
               disabled={!canMoveDown}
-              className="h-6 px-2"
+              className="h-11 w-11 p-0 flex-shrink-0"
             >
-              <ChevronDown className="h-3 w-3" />
+              <ChevronDown className="h-5 w-5" />
             </Button>
           </div>
+        </div>
+        
+        {/* Action bar */}
+        <div className="flex gap-2 mt-4">
           <Button
-            variant="ghost"
-            size="icon"
+            variant="default"
+            size="lg"
             onClick={() => onEdit(block)}
+            className="flex-1 h-11"
           >
-            <Edit className="h-4 w-4" />
+            <Edit className="h-4 w-4 mr-2" />
+            Edit Block
           </Button>
           <Button
-            variant="ghost"
-            size="icon"
+            variant="destructive"
+            size="lg"
             onClick={() => onRemove(block.id)}
+            className="h-11 px-4"
           >
             <Trash2 className="h-4 w-4" />
           </Button>
         </div>
       </div>
       
-      {isEmpty ? (
-        <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-8 text-center">
-          <Plus className="h-8 w-8 mx-auto mb-2 text-muted-foreground/50" />
-          <p className="text-sm text-muted-foreground">
-            Drag exercises here to group them
-          </p>
-        </div>
-      ) : (
-        children
-      )}
+      {/* Content */}
+      <div className="px-4 pb-4">
+        {isEmpty ? (
+          <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-8 text-center">
+            <Plus className="h-8 w-8 mx-auto mb-2 text-muted-foreground/50" />
+            <p className="text-sm text-muted-foreground">
+              Drag exercises here to group them
+            </p>
+          </div>
+        ) : (
+          children
+        )}
+      </div>
     </Card>
   );
 }
