@@ -1,14 +1,34 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import { ParsedExercise, WorkoutBlock } from '@/lib/exerciseParser';
 import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { Badge } from '@/components/ui/badge';  
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Trash2, Clock, Edit, RotateCcw, Zap, Target, Users } from 'lucide-react';
+import { Trash2, Clock, Edit, RotateCcw, Zap, Target, Users, GripVertical } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+  DragOverEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import {
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 interface WorkoutGridProps {
   exercises: ParsedExercise[];
@@ -18,6 +38,125 @@ interface WorkoutGridProps {
   onAddBlock: (block: WorkoutBlock) => void;
   onUpdateBlock: (block: WorkoutBlock) => void;
   onRemoveBlock: (id: string) => void;
+}
+
+// Sortable Exercise Component
+function SortableExercise({ exercise, onEdit, onRemove }: { 
+  exercise: ParsedExercise; 
+  onEdit: (exercise: ParsedExercise) => void;
+  onRemove: (id: string) => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: exercise.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  const formatTime = (date: Date) => {
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const renderExerciseBadges = (exercise: ParsedExercise) => {
+    const { parsedData } = exercise;
+    const badges = [];
+    
+    if (parsedData.sets && parsedData.reps) {
+      badges.push(
+        <Badge key="sets" variant="outline" className="text-xs">
+          {parsedData.sets} × {parsedData.reps}
+        </Badge>
+      );
+    }
+    
+    if (parsedData.progressiveWeights && parsedData.progressiveWeights.length > 0) {
+      badges.push(
+        <Badge key="progressive-weights" variant="secondary" className="text-xs">
+          {parsedData.progressiveWeights.join(' → ')}
+        </Badge>
+      );
+    } else if (parsedData.weight) {
+      badges.push(
+        <Badge key="weight" variant="secondary" className="text-xs">
+          {parsedData.weight}
+        </Badge>
+      );
+    }
+    
+    if (parsedData.time) {
+      badges.push(
+        <Badge key="time" variant="outline" className="text-xs">
+          {parsedData.time}
+        </Badge>
+      );
+    }
+    
+    if (parsedData.restPeriod) {
+      badges.push(
+        <Badge key="rest" variant="outline" className="text-xs">
+          Rest: {parsedData.restPeriod}
+        </Badge>
+      );
+    }
+    
+    return badges;
+  };
+
+  return (
+    <Card 
+      ref={setNodeRef}
+      style={style}
+      className="touch-manipulation select-none"
+    >
+      <CardContent className="p-3">
+        <div className="flex items-start justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <button
+              {...attributes}
+              {...listeners}
+              className="cursor-grab active:cursor-grabbing p-1 hover:bg-muted rounded"
+            >
+              <GripVertical className="h-4 w-4 text-muted-foreground" />
+            </button>
+            <h4 className="font-medium text-sm">{exercise.name}</h4>
+          </div>
+          <div className="flex gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => onEdit(exercise)}
+              className="h-6 w-6"
+            >
+              <Edit className="h-3 w-3" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => onRemove(exercise.id)}
+              className="h-6 w-6"
+            >
+              <Trash2 className="h-3 w-3" />
+            </Button>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-1 mb-2">
+          {renderExerciseBadges(exercise)}
+        </div>
+        <p className="text-xs text-muted-foreground flex items-center gap-1">
+          <Clock className="h-3 w-3" />
+          {formatTime(exercise.timestamp)}
+        </p>
+      </CardContent>
+    </Card>
+  );
 }
 
 export function WorkoutGrid({ 
@@ -30,20 +169,64 @@ export function WorkoutGrid({
   onRemoveBlock
 }: WorkoutGridProps) {
   const { toast } = useToast();
-  const [draggedId, setDraggedId] = useState<string | null>(null);
-  const [dragPosition, setDragPosition] = useState({ x: 0, y: 0 });
-  const [dropTarget, setDropTarget] = useState<string | null>(null);
-  const [dropZone, setDropZone] = useState<'exercise' | 'block' | 'reorder' | null>(null);
   const [editingBlock, setEditingBlock] = useState<WorkoutBlock | null>(null);
   const [editingExercise, setEditingExercise] = useState<ParsedExercise | null>(null);
 
-  // Get exercises not in any block
+  // Get exercises sorted by timestamp  
   const unassignedExercises = React.useMemo(() =>
     [...exercises.filter(ex => !ex.blockId)].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
   , [exercises]);
 
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (!over || active.id === over.id) return;
+
+    const activeExercise = exercises.find(ex => ex.id === active.id);
+    if (!activeExercise) return;
+
+    // Handle reordering within the same context (block or unassigned)
+    const activeBlockId = activeExercise.blockId;
+    const overExercise = exercises.find(ex => ex.id === over.id);
+    
+    if (overExercise) {
+      const overBlockId = overExercise.blockId;
+      
+      // If both are in the same context, reorder
+      if (activeBlockId === overBlockId) {
+        const contextExercises = exercises.filter(ex => ex.blockId === activeBlockId);
+        const oldIndex = contextExercises.findIndex(ex => ex.id === active.id);
+        const newIndex = contextExercises.findIndex(ex => ex.id === over.id);
+        
+        const reorderedExercises = arrayMove(contextExercises, oldIndex, newIndex);
+        
+        // Update timestamps to maintain order
+        const now = Date.now();
+        reorderedExercises.forEach((exercise, index) => {
+          const updatedExercise = { 
+            ...exercise, 
+            timestamp: new Date(now - (reorderedExercises.length - index) * 1000) 
+          };
+          onUpdateExercise(updatedExercise);
+        });
+
+        toast({
+          title: "Exercise reordered",
+          description: `${activeExercise.name} has been moved`,
+        });
+      }
+    }
   };
 
   const getBlockIcon = (type: string) => {
@@ -56,205 +239,6 @@ export function WorkoutGrid({
         return <Target className="h-4 w-4" />;
       default:
         return <Users className="h-4 w-4" />;
-    }
-  };
-
-  const handleTouchStart = useCallback((e: React.TouchEvent, itemId: string) => {
-    e.preventDefault();
-    const touch = e.touches[0];
-    const rect = e.currentTarget.getBoundingClientRect();
-    
-    setDraggedId(itemId);
-    setDragPosition({ 
-      x: rect.left, 
-      y: rect.top 
-    });
-    
-    // Prevent scrolling and text selection
-    document.body.style.overflow = 'hidden';
-    document.body.style.userSelect = 'none';
-    document.body.style.webkitUserSelect = 'none';
-    document.body.style.touchAction = 'none';
-  }, []);
-
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!draggedId) return;
-    
-    e.preventDefault();
-    const touch = e.touches[0];
-    
-    setDragPosition({
-      x: touch.clientX - 50, // Center the card on finger
-      y: touch.clientY - 50
-    });
-
-    // Find what's under the finger
-    const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
-    const dropElement = elementBelow?.closest('[data-drop-target]');
-    const targetId = dropElement?.getAttribute('data-drop-target');
-    const zone = dropElement?.getAttribute('data-drop-zone') as 'exercise' | 'block' | 'reorder' | null;
-    
-    setDropTarget(targetId && targetId !== draggedId ? targetId : null);
-    setDropZone(zone);
-  }, [draggedId]);
-
-  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
-    if (!draggedId) return;
-    
-    e.preventDefault();
-    
-    // Restore scrolling and text selection
-    document.body.style.overflow = '';
-    document.body.style.userSelect = '';
-    document.body.style.webkitUserSelect = '';
-    document.body.style.touchAction = '';
-
-    if (dropTarget && draggedId !== dropTarget) {
-      handleDrop(draggedId, dropTarget, dropZone);
-    }
-
-    setDraggedId(null);
-    setDropTarget(null);
-    setDropZone(null);
-    setDragPosition({ x: 0, y: 0 });
-  }, [draggedId, dropTarget]);
-
-  const handleDrop = (draggedId: string, targetId: string, zone: 'exercise' | 'block' | 'reorder' | null) => {
-    const draggedExercise = exercises.find(ex => ex.id === draggedId);
-    const targetExercise = exercises.find(ex => ex.id === targetId);
-    const targetBlock = blocks.find(block => block.id === targetId);
-    const draggedBlock = blocks.find(block => block.id === draggedId);
-
-    // Case 1: Reordering exercises within the same block or in unassigned area
-    if (zone === 'reorder' && draggedExercise && targetExercise) {
-      const draggedBlockId = draggedExercise.blockId;
-      const targetBlockId = targetExercise.blockId;
-      
-      // Allow reordering within same context OR moving between unassigned and blocks
-      if (draggedBlockId === targetBlockId) {
-        // Same context - reorder within
-        const contextExercises = exercises.filter(ex => ex.blockId === draggedBlockId);
-        const draggedIndex = contextExercises.findIndex(ex => ex.id === draggedId);
-        const targetIndex = contextExercises.findIndex(ex => ex.id === targetId);
-        
-        // Reorder by updating timestamps to maintain order
-        const now = Date.now();
-        const updatedExercises = [...contextExercises];
-        
-        // Remove dragged exercise and insert at target position
-        const [removed] = updatedExercises.splice(draggedIndex, 1);
-        updatedExercises.splice(targetIndex, 0, removed);
-        
-        // Update timestamps to maintain new order
-        updatedExercises.forEach((exercise, index) => {
-          const updatedExercise = { 
-            ...exercise, 
-            timestamp: new Date(now - (updatedExercises.length - index) * 1000) 
-          };
-          onUpdateExercise(updatedExercise);
-        });
-
-        toast({
-          title: "Exercise reordered",
-          description: `${draggedExercise.name} has been moved`,
-        });
-        return;
-      } else {
-        // Different contexts - move exercise to target's context and reorder
-        const targetContext = exercises.filter(ex => ex.blockId === targetBlockId);
-        const targetIndex = targetContext.findIndex(ex => ex.id === targetId);
-        
-        // Update dragged exercise to be in target's context
-        const now = Date.now();
-        const newTimestamp = targetIndex === 0 
-          ? new Date(now + 1000) // Place before first
-          : new Date(targetContext[targetIndex].timestamp.getTime() + 500); // Place after target
-        
-        onUpdateExercise({ 
-          ...draggedExercise, 
-          blockId: targetBlockId,
-          timestamp: newTimestamp
-        });
-
-        // If moving from block to unassigned, update the block's exercises array
-        if (draggedBlockId) {
-          const draggedBlock = blocks.find(b => b.id === draggedBlockId);
-          if (draggedBlock) {
-            const updatedBlock = {
-              ...draggedBlock,
-              exercises: draggedBlock.exercises.filter(id => id !== draggedId)
-            };
-            onUpdateBlock(updatedBlock);
-          }
-        }
-
-        // If moving to a block, update the block's exercises array
-        if (targetBlockId) {
-          const targetBlock = blocks.find(b => b.id === targetBlockId);
-          if (targetBlock) {
-            const updatedBlock = {
-              ...targetBlock,
-              exercises: [...targetBlock.exercises, draggedId]
-            };
-            onUpdateBlock(updatedBlock);
-          }
-        }
-
-        toast({
-          title: "Exercise moved",
-          description: `${draggedExercise.name} moved to ${targetBlockId ? blocks.find(b => b.id === targetBlockId)?.name : 'individual exercises'}`,
-        });
-        return;
-      }
-    }
-    
-    // Case 2: Block reordering
-    if (zone === 'reorder' && draggedBlock && targetBlock) {
-      // Handle block reordering logic here if needed
-      toast({
-        title: "Block reordered",
-        description: `${draggedBlock.name} has been moved`,
-      });
-      return;
-    }
-
-    if (!draggedExercise) return;
-
-    // Case 3: Dragging exercise onto another exercise - create new block
-    if (targetExercise && !targetExercise.blockId && zone === 'exercise') {
-      const newBlock: WorkoutBlock = {
-        id: Date.now().toString(),
-        name: `${draggedExercise.name} + ${targetExercise.name}`,
-        type: 'round',
-        exercises: [targetExercise.id, draggedExercise.id],
-        rounds: 3
-      };
-
-      onAddBlock(newBlock);
-      
-      // Update both exercises to be in the new block
-      onUpdateExercise({ ...targetExercise, blockId: newBlock.id });
-      onUpdateExercise({ ...draggedExercise, blockId: newBlock.id });
-
-      toast({
-        title: "Block created",
-        description: `Created "${newBlock.name}" with 2 exercises`,
-      });
-    }
-    // Case 4: Dragging exercise onto existing block
-    else if (targetBlock && zone === 'block') {
-      const updatedBlock = {
-        ...targetBlock,
-        exercises: [...targetBlock.exercises, draggedExercise.id]
-      };
-      
-      onUpdateBlock(updatedBlock);
-      onUpdateExercise({ ...draggedExercise, blockId: targetBlock.id });
-
-      toast({
-        title: "Exercise added to block",
-        description: `${draggedExercise.name} added to ${targetBlock.name}`,
-      });
     }
   };
 
@@ -346,22 +330,18 @@ export function WorkoutGrid({
   }
 
   return (
-    <>
-      <div className="w-full max-w-6xl space-y-6" style={{ touchAction: 'manipulation' }}>
+    <DndContext 
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragEnd={handleDragEnd}
+    >
+      <div className="w-full max-w-6xl space-y-6">
         {/* Blocks */}
         {blocks.map(block => {
           const blockExercises = [...exercises.filter(ex => ex.blockId === block.id)].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-          const isDropTarget = dropTarget === block.id;
           
           return (
-            <Card 
-              key={block.id}
-              className={`p-4 transition-all duration-200 ${
-                dropTarget === block.id && dropZone === 'block' ? 'ring-2 ring-primary bg-primary/5' : ''
-              }`}
-              data-drop-target={block.id}
-              data-drop-zone="block"
-            >
+            <Card key={block.id} className="p-4">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
                   {getBlockIcon(block.type)}
@@ -389,61 +369,18 @@ export function WorkoutGrid({
                 </div>
               </div>
               
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {blockExercises.map(exercise => {
-                  const isDragged = draggedId === exercise.id;
-                  
-                  return (
-                    <Card 
+              <SortableContext items={blockExercises.map(ex => ex.id)} strategy={verticalListSortingStrategy}>
+                <div className="space-y-3">
+                  {blockExercises.map(exercise => (
+                    <SortableExercise
                       key={exercise.id}
-                      className={`touch-manipulation select-none transition-all duration-200 ${
-                        isDragged ? 'opacity-30' : 'active:scale-95'
-                      } ${dropTarget === exercise.id && dropZone === 'reorder' ? 'ring-2 ring-blue-500 bg-blue-50' : ''}`}
-                      style={{
-                        userSelect: 'none',
-                        WebkitUserSelect: 'none',
-                        touchAction: 'none'
-                      }}
-                      onTouchStart={(e) => handleTouchStart(e, exercise.id)}
-                      onTouchMove={handleTouchMove}
-                      onTouchEnd={handleTouchEnd}
-                      data-drop-target={exercise.id}
-                      data-drop-zone="reorder"
-                    >
-                      <CardContent className="p-3">
-                        <div className="flex items-start justify-between mb-2">
-                          <h4 className="font-medium text-sm">{exercise.name}</h4>
-                          <div className="flex gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleExerciseEdit(exercise)}
-                              className="h-6 w-6"
-                            >
-                              <Edit className="h-3 w-3" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => onRemoveExercise(exercise.id)}
-                              className="h-6 w-6"
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        </div>
-                        <div className="flex flex-wrap gap-1 mb-2">
-                          {renderExerciseBadges(exercise)}
-                        </div>
-                        <p className="text-xs text-muted-foreground flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {formatTime(exercise.timestamp)}
-                        </p>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </div>
+                      exercise={exercise}
+                      onEdit={handleExerciseEdit}
+                      onRemove={onRemoveExercise}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
             </Card>
           );
         })}
@@ -452,94 +389,26 @@ export function WorkoutGrid({
         {unassignedExercises.length > 0 && (
           <div className="space-y-4">
             <h3 className="text-lg font-semibold">Exercises</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {unassignedExercises.map(exercise => {
-                const isDragged = draggedId === exercise.id;
-                const isDropTarget = dropTarget === exercise.id;
-                
-                return (
-                  <Card 
+            <SortableContext items={unassignedExercises.map(ex => ex.id)} strategy={verticalListSortingStrategy}>
+              <div className="space-y-3">
+                {unassignedExercises.map(exercise => (
+                  <SortableExercise
                     key={exercise.id}
-                    className={`touch-manipulation select-none transition-all duration-200 ${
-                      isDragged ? 'opacity-30' : ''
-                    } ${dropTarget === exercise.id && (dropZone === 'exercise' || dropZone === 'reorder') ? 'ring-2 ring-primary bg-primary/5' : 'active:scale-95'}`}
-                    style={{
-                      userSelect: 'none',
-                      WebkitUserSelect: 'none',
-                      touchAction: 'none'
-                    }}
-                    onTouchStart={(e) => handleTouchStart(e, exercise.id)}
-                    onTouchMove={handleTouchMove}
-                    onTouchEnd={handleTouchEnd}
-                     data-drop-target={exercise.id}
-                     data-drop-zone="reorder"
-                  >
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between mb-3">
-                        <h4 className="font-medium">{exercise.name}</h4>
-                        <div className="flex gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleExerciseEdit(exercise)}
-                            className="h-6 w-6"
-                          >
-                            <Edit className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => onRemoveExercise(exercise.id)}
-                            className="h-6 w-6"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap gap-1 mb-3">
-                        {renderExerciseBadges(exercise)}
-                      </div>
-                      <p className="text-xs text-muted-foreground flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        {formatTime(exercise.timestamp)}
-                      </p>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Floating Dragged Item */}
-        {draggedId && (
-          <div
-            className="fixed z-50 pointer-events-none"
-            style={{
-              left: dragPosition.x,
-              top: dragPosition.y,
-              transform: 'rotate(5deg) scale(0.9)',
-              transition: 'none'
-            }}
-          >
-            <Card className="opacity-80 shadow-2xl">
-              <CardContent className="p-4">
-                <h4 className="font-medium">
-                  {exercises.find(ex => ex.id === draggedId)?.name}
-                </h4>
-              </CardContent>
-            </Card>
+                    exercise={exercise}
+                    onEdit={handleExerciseEdit}
+                    onRemove={onRemoveExercise}
+                  />
+                ))}
+              </div>
+            </SortableContext>
           </div>
         )}
 
         <div className="text-sm text-muted-foreground bg-muted/50 p-4 rounded-lg">
           <div className="font-medium mb-2">How to use:</div>
           <div className="space-y-1">
-            <div>• Press and hold an exercise to start dragging</div>
-            <div>• Drag onto another exercise to create a block</div>
-            <div>• Drag onto existing blocks to add exercises</div>
-            <div>• Drag within same context to reorder</div>
-            <div>• Tap edit button to modify exercise or block parameters</div>
+            <div>• Drag exercises by their grip handles to reorder</div>
+            <div>• Tap edit button to modify exercise parameters</div>
           </div>
         </div>
       </div>
@@ -749,6 +618,6 @@ export function WorkoutGrid({
           )}
         </DialogContent>
       </Dialog>
-    </>
+    </DndContext>
   );
 }
