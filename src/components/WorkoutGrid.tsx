@@ -121,44 +121,45 @@ function SortableExercise({ exercise, onEdit, onRemove }: {
       style={style}
       className="drag-handle"
     >
-      <CardContent className="p-3">
-        <div className="flex items-start justify-between mb-2">
-          <div className="flex items-center gap-3 flex-1">
-            <div className="flex gap-1">
+      <CardContent className="p-0 relative">
+        <div className="flex min-h-[120px]">
+          <div className="flex items-start gap-3 p-3 flex-1">
+            <div className="flex flex-col gap-2">
               <Button
                 variant="ghost"
-                size="sm"
+                size="lg"
                 onClick={() => onEdit(exercise)}
-                className="h-8 w-8 p-0"
+                className="h-12 w-12 p-0"
               >
-                <Edit className="h-4 w-4" />
+                <Edit className="h-6 w-6" />
               </Button>
               <Button
                 variant="ghost"
-                size="sm"
+                size="lg"
                 onClick={() => onRemove(exercise.id)}
-                className="h-8 w-8 p-0"
+                className="h-12 w-12 p-0"
               >
-                <Trash2 className="h-4 w-4" />
+                <Trash2 className="h-6 w-6" />
               </Button>
             </div>
-            <h4 className="font-medium text-sm">{exercise.name}</h4>
+            <div className="flex-1">
+              <h4 className="font-medium text-sm mb-3">{exercise.name}</h4>
+              <div className="flex flex-wrap gap-1 mb-2">
+                {renderExerciseBadges(exercise)}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {exercise.originalInput}
+              </p>
+            </div>
           </div>
           <button
             {...attributes}
             {...listeners}
-            className="drag-grip cursor-grab active:cursor-grabbing p-2 hover:bg-muted rounded-lg touch-none flex-shrink-0"
+            className="drag-grip cursor-grab active:cursor-grabbing w-16 hover:bg-muted touch-none flex-shrink-0 flex items-center justify-center border-l border-border self-stretch"
           >
             <GripVertical className="h-8 w-8 text-muted-foreground" />
           </button>
         </div>
-        <div className="flex flex-wrap gap-1 mb-2">
-          {renderExerciseBadges(exercise)}
-        </div>
-        <p className="text-xs text-muted-foreground flex items-center gap-1">
-          <Clock className="h-3 w-3" />
-          {formatTime(exercise.timestamp)}
-        </p>
       </CardContent>
     </Card>
   );
