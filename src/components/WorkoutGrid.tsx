@@ -125,27 +125,22 @@ function SortableExercise({ exercise, onEdit, onRemove, onUngroup }: {
             <div className="flex gap-2">
               <Button
                 variant="default"
-                size="lg"
                 onClick={() => onEdit(exercise)}
-                className="flex-1 h-11"
+                className="h-11 px-4"
               >
-                <Edit className="h-4 w-4 mr-2" />
-                Edit
+                <Edit className="h-4 w-4" />
               </Button>
               {exercise.blockId && (
                 <Button
                   variant="outline"
-                  size="lg"
                   onClick={() => onUngroup?.(exercise)}
                   className="h-11 px-4"
                 >
-                  <Link2Off className="h-4 w-4 mr-2" />
-                  Ungroup
+                  <Link2Off className="h-4 w-4" />
                 </Button>
               )}
               <Button
                 variant="destructive"
-                size="lg"
                 onClick={() => onRemove(exercise.id)}
                 className="h-11 px-4"
               >
@@ -251,21 +246,19 @@ function DroppableBlock({
           <div className="flex gap-1 ml-3">
             <Button
               variant="outline"
-              size="lg"
               onClick={() => onMoveUp(block.id)}
               disabled={!canMoveUp}
-              className="h-11 w-11 p-0 flex-shrink-0"
+              className="h-11 px-4"
             >
-              <ChevronUp className="h-5 w-5" />
+              <ChevronUp className="h-4 w-4" />
             </Button>
             <Button
               variant="outline"
-              size="lg"
               onClick={() => onMoveDown(block.id)}
               disabled={!canMoveDown}
-              className="h-11 w-11 p-0 flex-shrink-0"
+              className="h-11 px-4"
             >
-              <ChevronDown className="h-5 w-5" />
+              <ChevronDown className="h-4 w-4" />
             </Button>
           </div>
         </div>
@@ -274,16 +267,13 @@ function DroppableBlock({
         <div className="flex gap-2 mt-4">
           <Button
             variant="default"
-            size="lg"
             onClick={() => onEdit(block)}
-            className="flex-1 h-11"
+            className="h-11 px-4"
           >
-            <Edit className="h-4 w-4 mr-2" />
-            Edit Block
+            <Edit className="h-4 w-4" />
           </Button>
           <Button
             variant="destructive"
-            size="lg"
             onClick={() => onRemove(block.id)}
             className="h-11 px-4"
           >
