@@ -128,8 +128,9 @@ export function WorkoutGrid({
       const draggedBlockId = draggedExercise.blockId;
       const targetBlockId = targetExercise.blockId;
       
-      // Only allow reordering within same context (both in same block or both unassigned)
+      // Allow reordering within same context OR moving between unassigned and blocks
       if (draggedBlockId === targetBlockId) {
+        // Same context - reorder within
         const contextExercises = exercises.filter(ex => ex.blockId === draggedBlockId);
         const draggedIndex = contextExercises.findIndex(ex => ex.id === draggedId);
         const targetIndex = contextExercises.findIndex(ex => ex.id === targetId);
@@ -154,6 +155,52 @@ export function WorkoutGrid({
         toast({
           title: "Exercise reordered",
           description: `${draggedExercise.name} has been moved`,
+        });
+        return;
+      } else {
+        // Different contexts - move exercise to target's context and reorder
+        const targetContext = exercises.filter(ex => ex.blockId === targetBlockId);
+        const targetIndex = targetContext.findIndex(ex => ex.id === targetId);
+        
+        // Update dragged exercise to be in target's context
+        const now = Date.now();
+        const newTimestamp = targetIndex === 0 
+          ? new Date(now + 1000) // Place before first
+          : new Date(targetContext[targetIndex].timestamp.getTime() + 500); // Place after target
+        
+        onUpdateExercise({ 
+          ...draggedExercise, 
+          blockId: targetBlockId,
+          timestamp: newTimestamp
+        });
+
+        // If moving from block to unassigned, update the block's exercises array
+        if (draggedBlockId) {
+          const draggedBlock = blocks.find(b => b.id === draggedBlockId);
+          if (draggedBlock) {
+            const updatedBlock = {
+              ...draggedBlock,
+              exercises: draggedBlock.exercises.filter(id => id !== draggedId)
+            };
+            onUpdateBlock(updatedBlock);
+          }
+        }
+
+        // If moving to a block, update the block's exercises array
+        if (targetBlockId) {
+          const targetBlock = blocks.find(b => b.id === targetBlockId);
+          if (targetBlock) {
+            const updatedBlock = {
+              ...targetBlock,
+              exercises: [...targetBlock.exercises, draggedId]
+            };
+            onUpdateBlock(updatedBlock);
+          }
+        }
+
+        toast({
+          title: "Exercise moved",
+          description: `${draggedExercise.name} moved to ${targetBlockId ? blocks.find(b => b.id === targetBlockId)?.name : 'individual exercises'}`,
         });
         return;
       }
@@ -422,8 +469,8 @@ export function WorkoutGrid({
                     onTouchStart={(e) => handleTouchStart(e, exercise.id)}
                     onTouchMove={handleTouchMove}
                     onTouchEnd={handleTouchEnd}
-                    data-drop-target={exercise.id}
-                    data-drop-zone="exercise"
+                     data-drop-target={exercise.id}
+                     data-drop-zone="reorder"
                   >
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between mb-3">
