@@ -123,34 +123,34 @@ function SortableExercise({ exercise, onEdit, onRemove }: {
     >
       <CardContent className="p-3">
         <div className="flex items-start justify-between mb-2">
-          <div className="flex items-center gap-2">
-            <button
-              {...attributes}
-              {...listeners}
-              className="drag-grip cursor-grab active:cursor-grabbing p-1 hover:bg-muted rounded touch-none"
-            >
-              <GripVertical className="h-4 w-4 text-muted-foreground" />
-            </button>
+          <div className="flex items-center gap-3 flex-1">
+            <div className="flex gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onEdit(exercise)}
+                className="h-8 w-8 p-0"
+              >
+                <Edit className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onRemove(exercise.id)}
+                className="h-8 w-8 p-0"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
             <h4 className="font-medium text-sm">{exercise.name}</h4>
           </div>
-          <div className="flex gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => onEdit(exercise)}
-              className="h-6 w-6"
-            >
-              <Edit className="h-3 w-3" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => onRemove(exercise.id)}
-              className="h-6 w-6"
-            >
-              <Trash2 className="h-3 w-3" />
-            </Button>
-          </div>
+          <button
+            {...attributes}
+            {...listeners}
+            className="drag-grip cursor-grab active:cursor-grabbing p-2 hover:bg-muted rounded-lg touch-none flex-shrink-0"
+          >
+            <GripVertical className="h-8 w-8 text-muted-foreground" />
+          </button>
         </div>
         <div className="flex flex-wrap gap-1 mb-2">
           {renderExerciseBadges(exercise)}
