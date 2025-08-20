@@ -313,12 +313,6 @@ export function WorkoutGrid({
     const activeId = active.id as string;
     const overId = over.id as string;
 
-    // Check if dragging onto another exercise (for grouping)
-    const overExercise = exercises.find(ex => ex.id === overId);
-    if (overExercise && activeId !== overId) {
-      return; // Handle grouping in handleDragEnd
-    }
-
     const activeContainer = findContainer(activeId);
     const overContainer = over.data.current?.type === 'block' 
       ? over.id as string
@@ -345,37 +339,6 @@ export function WorkoutGrid({
 
     const activeId = active.id as string;
     const overId = over.id as string;
-
-    // Check if dragging onto another exercise (create new block)
-    const overExercise = exercises.find(ex => ex.id === overId);
-    const activeExercise = exercises.find(ex => ex.id === activeId);
-    
-    if (overExercise && activeExercise && activeId !== overId) {
-      // Create a new block with both exercises
-      const newBlock: WorkoutBlock = {
-        id: `block-${Date.now()}`,
-        name: `${activeExercise.name} + ${overExercise.name}`,
-        type: 'superset',
-        exercises: [],
-        rounds: 1,
-        restBetweenExercises: '30s'
-      };
-      
-      onAddBlock(newBlock);
-      
-      // Update both exercises to belong to the new block
-      const updatedActiveExercise = { ...activeExercise, blockId: newBlock.id };
-      const updatedOverExercise = { ...overExercise, blockId: newBlock.id };
-      
-      onUpdateExercise(updatedActiveExercise);
-      onUpdateExercise(updatedOverExercise);
-      
-      toast({
-        title: "Block created",
-        description: `Created "${newBlock.name}" with 2 exercises`,
-      });
-      return;
-    }
 
     const activeContainer = findContainer(activeId);
     const overContainer = over.data.current?.type === 'block' 
@@ -416,6 +379,20 @@ export function WorkoutGrid({
 
   const activeExercise = exercises.find(ex => ex.id === activeId);
 
+
+  const handleAddBlock = () => {
+    const newBlock: WorkoutBlock = {
+      id: `block-${Date.now()}`,
+      name: 'New Block',
+      type: 'superset',
+      exercises: [],
+      rounds: 1,
+      restBetweenExercises: '30s'
+    };
+    
+    onAddBlock(newBlock);
+    setEditingBlock(newBlock);
+  };
 
   const handleExerciseEdit = (exercise: ParsedExercise) => {
     setEditingExercise(exercise);
@@ -513,6 +490,15 @@ export function WorkoutGrid({
       onDragEnd={handleDragEnd}
     >
       <div className="w-full max-w-6xl space-y-6">
+        {/* Toolbar */}
+        <div className="flex justify-between items-center">
+          <h2 className="text-lg font-semibold">Workout Structure</h2>
+          <Button onClick={handleAddBlock} className="gap-2">
+            <Plus className="h-4 w-4" />
+            Add Block
+          </Button>
+        </div>
+
         {/* Blocks */}
         {blocks.map(block => {
           const blockExercises = exercises.filter(ex => ex.blockId === block.id)
@@ -570,8 +556,8 @@ export function WorkoutGrid({
           <div className="space-y-1">
             <div>• Drag exercises by their grip handles to reorder</div>
             <div>• Drag exercises into blocks to group them</div>
-            <div>• Drag one exercise onto another to create a new block</div>
-            <div>• Tap edit button to modify exercise parameters</div>
+            <div>• Use "Add Block" button to create new blocks</div>
+            <div>• Tap edit button to modify exercise or block parameters</div>
           </div>
         </div>
       </div>
