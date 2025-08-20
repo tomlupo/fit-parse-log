@@ -35,15 +35,6 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
-interface WorkoutGridProps {
-  exercises: ParsedExercise[];
-  blocks: WorkoutBlock[];
-  onRemoveExercise: (id: string) => void;
-  onUpdateExercise: (exercise: ParsedExercise) => void;
-  onAddBlock: (block: WorkoutBlock) => void;
-  onUpdateBlock: (block: WorkoutBlock) => void;
-  onRemoveBlock: (id: string) => void;
-}
 
 // Sortable Exercise Component
 function SortableExercise({ exercise, onEdit, onRemove }: { 
@@ -184,6 +175,18 @@ function DroppableBlock({
     data: { type: 'block', blockId: block.id }
   });
 
+  const {
+    attributes: blockAttributes,
+    listeners: blockListeners,
+    setNodeRef: setBlockDragRef,
+    transform: blockTransform,
+    transition: blockTransition,
+    isDragging: isBlockDragging,
+  } = useSortable({ 
+    id: `block-${block.id}`,
+    data: { type: 'block' }
+  });
+
   const getBlockIcon = (type: string) => {
     switch (type) {
       case 'round':
@@ -197,13 +200,30 @@ function DroppableBlock({
     }
   };
 
+  const blockStyle = {
+    transform: CSS.Transform.toString(blockTransform),
+    transition: blockTransition,
+    opacity: isBlockDragging ? 0.5 : 1,
+  };
+
   return (
     <Card 
-      ref={setNodeRef}
+      ref={(node) => {
+        setNodeRef(node);
+        setBlockDragRef(node);
+      }}
+      style={blockStyle}
       className={`p-4 transition-all ${isOver ? 'ring-2 ring-primary bg-primary/5' : ''}`}
     >
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
+          <button
+            {...blockAttributes}
+            {...blockListeners}
+            className="cursor-grab active:cursor-grabbing p-1 hover:bg-muted rounded touch-none"
+          >
+            <GripVertical className="h-4 w-4 text-muted-foreground" />
+          </button>
           {getBlockIcon(block.type)}
           <h3 className="font-semibold">{block.name}</h3>
           <Badge variant="outline">{block.type}</Badge>
@@ -243,6 +263,17 @@ function DroppableBlock({
   );
 }
 
+interface WorkoutGridProps {
+  exercises: ParsedExercise[];
+  blocks: WorkoutBlock[];
+  onRemoveExercise: (id: string) => void;
+  onUpdateExercise: (exercise: ParsedExercise) => void;
+  onAddBlock: (block: WorkoutBlock) => void;
+  onUpdateBlock: (block: WorkoutBlock) => void;
+  onRemoveBlock: (id: string) => void;
+  onReorderBlocks: (blocks: WorkoutBlock[]) => void;
+}
+
 export function WorkoutGrid({ 
   exercises, 
   blocks, 
@@ -250,7 +281,8 @@ export function WorkoutGrid({
   onUpdateExercise,
   onAddBlock,
   onUpdateBlock,
-  onRemoveBlock
+  onRemoveBlock,
+  onReorderBlocks
 }: WorkoutGridProps) {
   const { toast } = useToast();
   const [editingBlock, setEditingBlock] = useState<WorkoutBlock | null>(null);
@@ -276,6 +308,9 @@ export function WorkoutGrid({
     return result;
   }, [exercises, blocks]);
 
+  // Block IDs for sortable context
+  const blockIds = useMemo(() => blocks.map(block => `block-${block.id}`), [blocks]);
+
   const sensors = useSensors(
     useSensor(MouseSensor, {
       activationConstraint: {
@@ -300,6 +335,10 @@ export function WorkoutGrid({
       if (items.includes(id)) return containerId;
     }
     return null;
+  };
+
+  const isBlock = (id: string): boolean => {
+    return blocks.some(block => `block-${block.id}` === id);
   };
 
   const handleDragStart = (event: DragStartEvent) => {
@@ -340,6 +379,24 @@ export function WorkoutGrid({
     const activeId = active.id as string;
     const overId = over.id as string;
 
+    // Handle block reordering
+    if (isBlock(activeId) && isBlock(overId)) {
+      const oldIndex = blockIds.indexOf(activeId);
+      const newIndex = blockIds.indexOf(overId);
+      
+      if (oldIndex !== newIndex) {
+        const reorderedBlocks = arrayMove(blocks, oldIndex, newIndex);
+        onReorderBlocks(reorderedBlocks);
+        
+        toast({
+          title: "Block reordered",
+          description: "Block order updated",
+        });
+      }
+      return;
+    }
+
+    // Handle exercise reordering
     const activeContainer = findContainer(activeId);
     const overContainer = over.data.current?.type === 'block' 
       ? over.id as string
@@ -500,34 +557,36 @@ export function WorkoutGrid({
         </div>
 
         {/* Blocks */}
-        {blocks.map(block => {
-          const blockExercises = exercises.filter(ex => ex.blockId === block.id)
-            .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-          const containerId = `block-${block.id}`;
-          
-          return (
-            <DroppableBlock
-              key={block.id}
-              block={block}
-              onEdit={handleBlockEdit}
-              onRemove={onRemoveBlock}
-              isEmpty={blockExercises.length === 0}
-            >
-              <SortableContext items={containers[containerId] || []} strategy={verticalListSortingStrategy}>
-                <div className="space-y-3">
-                  {blockExercises.map(exercise => (
-                    <SortableExercise
-                      key={exercise.id}
-                      exercise={exercise}
-                      onEdit={handleExerciseEdit}
-                      onRemove={onRemoveExercise}
-                    />
-                  ))}
-                </div>
-              </SortableContext>
-            </DroppableBlock>
-          );
-        })}
+        <SortableContext items={blockIds} strategy={verticalListSortingStrategy}>
+          {blocks.map(block => {
+            const blockExercises = exercises.filter(ex => ex.blockId === block.id)
+              .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+            const containerId = `block-${block.id}`;
+            
+            return (
+              <DroppableBlock
+                key={block.id}
+                block={block}
+                onEdit={handleBlockEdit}
+                onRemove={onRemoveBlock}
+                isEmpty={blockExercises.length === 0}
+              >
+                <SortableContext items={containers[containerId] || []} strategy={verticalListSortingStrategy}>
+                  <div className="space-y-3">
+                    {blockExercises.map(exercise => (
+                      <SortableExercise
+                        key={exercise.id}
+                        exercise={exercise}
+                        onEdit={handleExerciseEdit}
+                        onRemove={onRemoveExercise}
+                      />
+                    ))}
+                  </div>
+                </SortableContext>
+              </DroppableBlock>
+            );
+          })}
+        </SortableContext>
 
         {/* Unassigned Exercises */}
         {containers.unassigned.length > 0 && (
@@ -556,6 +615,7 @@ export function WorkoutGrid({
           <div className="space-y-1">
             <div>• Drag exercises by their grip handles to reorder</div>
             <div>• Drag exercises into blocks to group them</div>
+            <div>• Drag blocks by their grip handles to reorder blocks</div>
             <div>• Use "Add Block" button to create new blocks</div>
             <div>• Tap edit button to modify exercise or block parameters</div>
           </div>

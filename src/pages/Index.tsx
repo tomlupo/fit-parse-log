@@ -111,6 +111,10 @@ const Index = () => {
     ));
   };
 
+  const handleReorderBlocks = (reorderedBlocks: WorkoutBlock[]) => {
+    setBlocks(reorderedBlocks);
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8">
@@ -149,6 +153,7 @@ const Index = () => {
                 onAddBlock={handleAddBlock}
                 onUpdateBlock={handleUpdateBlock}
                 onRemoveBlock={handleRemoveBlock}
+                onReorderBlocks={handleReorderBlocks}
               />
             </TabsContent>
           </Tabs>
