@@ -3,8 +3,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Dumbbell } from 'lucide-react';
+import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Plus, Dumbbell, Search } from 'lucide-react';
 import { parseExerciseParameters, ParsedExercise } from '@/lib/exerciseParser';
+import { searchExercises } from '@/lib/mockExercises';
 
 interface ExerciseFormProps {
   onAddExercise: (exercise: ParsedExercise) => void;
@@ -14,22 +17,40 @@ export function ExerciseForm({ onAddExercise }: ExerciseFormProps) {
   const [exerciseName, setExerciseName] = useState('');
   const [exerciseParams, setExerciseParams] = useState('');
   const [preview, setPreview] = useState<ParsedExercise | null>(null);
+  const [open, setOpen] = useState(false);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
 
-  const handleParametersChange = (value: string) => {
-    setExerciseParams(value);
-    
-    if (value.trim() && exerciseName.trim()) {
-      const parsedData = parseExerciseParameters(value);
+  const handleExerciseNameChange = (value: string) => {
+    setExerciseName(value);
+    setSuggestions(searchExercises(value));
+    updatePreview(value, exerciseParams);
+  };
+
+  const handleExerciseSelect = (exercise: string) => {
+    setExerciseName(exercise);
+    setSuggestions([]);
+    setOpen(false);
+    updatePreview(exercise, exerciseParams);
+  };
+
+  const updatePreview = (name: string, params: string) => {
+    if (params.trim() && name.trim()) {
+      const parsedData = parseExerciseParameters(params);
       setPreview({
         id: '',
-        name: exerciseName,
-        originalInput: value,
+        name,
+        originalInput: params,
         parsedData,
         timestamp: new Date()
       });
     } else {
       setPreview(null);
     }
+  };
+
+  const handleParametersChange = (value: string) => {
+    setExerciseParams(value);
+    updatePreview(exerciseName, value);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -115,12 +136,44 @@ export function ExerciseForm({ onAddExercise }: ExerciseFormProps) {
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <Input
-              placeholder="Exercise name (e.g., Bench Press, Running, Squats)"
-              value={exerciseName}
-              onChange={(e) => setExerciseName(e.target.value)}
-              className="text-lg"
-            />
+            <Popover open={open && suggestions.length > 0} onOpenChange={setOpen}>
+              <PopoverTrigger asChild>
+                <div className="relative">
+                  <Input
+                    placeholder="Exercise name (e.g., Bench Press, Running, Squats)"
+                    value={exerciseName}
+                    onChange={(e) => {
+                      handleExerciseNameChange(e.target.value);
+                      setOpen(true);
+                    }}
+                    onFocus={() => {
+                      if (suggestions.length > 0) setOpen(true);
+                    }}
+                    className="text-lg pr-10"
+                  />
+                  <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                </div>
+              </PopoverTrigger>
+              <PopoverContent className="w-full p-0" align="start">
+                <Command>
+                  <CommandList>
+                    <CommandEmpty>No exercises found.</CommandEmpty>
+                    <CommandGroup>
+                      {suggestions.map((exercise) => (
+                        <CommandItem
+                          key={exercise}
+                          onSelect={() => handleExerciseSelect(exercise)}
+                          className="cursor-pointer"
+                        >
+                          <Dumbbell className="mr-2 h-4 w-4" />
+                          {exercise}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
           
           <div>
