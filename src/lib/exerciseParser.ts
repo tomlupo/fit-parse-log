@@ -16,6 +16,12 @@ export interface ParsedExercise {
   parsedData: ParsedExerciseData;
   timestamp: Date;
   blockId?: string; // Optional block/round assignment
+  blockProgression?: {
+    roundWeights?: string[];
+    roundReps?: number[];
+    roundTimes?: string[];
+    roundDistances?: string[];
+  };
 }
 
 export interface WorkoutBlock {

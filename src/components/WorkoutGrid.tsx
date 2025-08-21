@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Trash2, Edit, RotateCcw, Zap, Target, Users, Plus, ChevronUp, ChevronDown, Link2Off, Link2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { ExerciseInBlockEditor } from './ExerciseInBlockEditor';
 
 // Exercise Component
 function ExerciseCard({ 
@@ -21,7 +22,8 @@ function ExerciseCard({
   onMoveDown,
   canMoveUp,
   canMoveDown,
-  showGroupButton = false
+  showGroupButton = false,
+  isInBlock = false
 }: { 
   exercise: ParsedExercise; 
   onEdit: (exercise: ParsedExercise) => void;
@@ -33,15 +35,18 @@ function ExerciseCard({
   canMoveUp: boolean;
   canMoveDown: boolean;
   showGroupButton?: boolean;
+  isInBlock?: boolean;
 }) {
   const renderExerciseBadges = (exercise: ParsedExercise) => {
     const { parsedData } = exercise;
     const badges = [];
     
     if (parsedData.sets && parsedData.reps) {
+      // Show different format for exercises in blocks
+      const setsDisplay = isInBlock ? `1 × ${parsedData.reps} (per round)` : `${parsedData.sets} × ${parsedData.reps}`;
       badges.push(
         <Badge key="sets" variant="outline" className="text-xs">
-          {parsedData.sets} × {parsedData.reps}
+          {setsDisplay}
         </Badge>
       );
     }
@@ -300,6 +305,7 @@ export function WorkoutGrid({
   const { toast } = useToast();
   const [editingBlock, setEditingBlock] = useState<WorkoutBlock | null>(null);
   const [editingExercise, setEditingExercise] = useState<ParsedExercise | null>(null);
+  const [editingExerciseInBlock, setEditingExerciseInBlock] = useState<{exercise: ParsedExercise, block: WorkoutBlock} | null>(null);
   const [groupingExercise, setGroupingExercise] = useState<string | null>(null);
   const [newBlockName, setNewBlockName] = useState('New Block');
 
@@ -318,7 +324,25 @@ export function WorkoutGrid({
   };
 
   const handleExerciseEdit = (exercise: ParsedExercise) => {
-    setEditingExercise(exercise);
+    if (exercise.blockId) {
+      // For exercises in blocks, use the specialized editor
+      const block = blocks.find(b => b.id === exercise.blockId);
+      if (block) {
+        setEditingExerciseInBlock({ exercise, block });
+      }
+    } else {
+      // For standalone exercises, use the regular editor
+      setEditingExercise(exercise);
+    }
+  };
+
+  const handleExerciseInBlockSave = (exercise: ParsedExercise) => {
+    onUpdateExercise(exercise);
+    setEditingExerciseInBlock(null);
+    toast({
+      title: "Exercise updated",
+      description: `${exercise.name} has been updated with progression settings`,
+    });
   };
 
   const handleBlockEdit = (block: WorkoutBlock) => {
@@ -432,6 +456,7 @@ export function WorkoutGrid({
                     onMoveDown={onMoveExerciseInBlockDown}
                     canMoveUp={exerciseIndex > 0}
                     canMoveDown={exerciseIndex < blockExercises.length - 1}
+                    isInBlock={true}
                   />
                 ))}
               </div>
@@ -731,6 +756,15 @@ export function WorkoutGrid({
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Exercise in Block Edit Dialog */}
+      <ExerciseInBlockEditor
+        exercise={editingExerciseInBlock?.exercise || null}
+        block={editingExerciseInBlock?.block || { id: '', name: '', type: 'superset', exercises: [] }}
+        isOpen={!!editingExerciseInBlock}
+        onClose={() => setEditingExerciseInBlock(null)}
+        onSave={handleExerciseInBlockSave}
+      />
     </div>
   );
 }
