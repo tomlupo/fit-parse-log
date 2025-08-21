@@ -93,9 +93,6 @@ function ExerciseCard({
             <div className="flex flex-wrap gap-2 mb-3">
               {renderExerciseBadges(exercise)}
             </div>
-            <p className="text-sm text-muted-foreground mb-4">
-              {exercise.originalInput}
-            </p>
           </div>
           
           {/* Move buttons */}
