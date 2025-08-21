@@ -25,58 +25,80 @@ export function WorkoutSession({ exercises, blocks }: WorkoutSessionProps) {
 
   const renderExerciseCard = (exercise: ParsedExercise) => {
     const { parsedData } = exercise;
+    const isInBlock = !!exercise.blockId;
+    
+    const renderExerciseBadges = () => {
+      const badges = [];
+      
+      if (parsedData.sets && parsedData.reps) {
+        // Show different format for exercises in blocks
+        const setsDisplay = isInBlock ? `1 × ${parsedData.reps} (per round)` : `${parsedData.sets} × ${parsedData.reps}`;
+        badges.push(
+          <Badge key="sets" variant="outline" className="text-xs">
+            {setsDisplay}
+          </Badge>
+        );
+      }
+      
+      if (parsedData.progressiveWeights && parsedData.progressiveWeights.length > 0) {
+        badges.push(
+          <Badge key="progressive-weights" variant="secondary" className="text-xs">
+            {parsedData.progressiveWeights.join(' → ')}
+          </Badge>
+        );
+      } else if (parsedData.weight) {
+        badges.push(
+          <Badge key="weight" variant="secondary" className="text-xs">
+            {parsedData.weight}
+          </Badge>
+        );
+      }
+      
+      if (parsedData.time) {
+        badges.push(
+          <Badge key="time" variant="outline" className="text-xs">
+            {parsedData.time}
+          </Badge>
+        );
+      }
+      
+      if (parsedData.distance) {
+        badges.push(
+          <Badge key="distance" variant="outline" className="text-xs">
+            {parsedData.distance}
+          </Badge>
+        );
+      }
+      
+      if (parsedData.restPeriod) {
+        badges.push(
+          <Badge key="rest" variant="outline" className="text-xs">
+            Rest: {parsedData.restPeriod}
+          </Badge>
+        );
+      }
+      
+      return badges;
+    };
     
     return (
-      <Card key={exercise.id} className="transition-transform hover:scale-[1.02]">
+      <Card key={exercise.id} className="overflow-hidden">
         <CardContent className="p-4">
-          <div className="mb-3">
-            <h3 className="font-semibold text-lg text-foreground">{exercise.name}</h3>
-            <p className="text-sm text-muted-foreground flex items-center gap-1">
-              <Clock className="h-3 w-3" />
-              {formatTime(exercise.timestamp)}
-            </p>
-          </div>
-          
-          <div className="flex flex-wrap gap-2 mb-3">
-            <Badge variant="outline">{parsedData.type}</Badge>
+          <div className="flex items-start justify-between">
+            <div className="flex-1 min-w-0">
+              <h4 className="font-medium text-base mb-3">{exercise.name}</h4>
+              <div className="flex flex-wrap gap-2 mb-3">
+                {renderExerciseBadges()}
+              </div>
+            </div>
             
-            {parsedData.sets && parsedData.reps && (
-              <Badge variant="sets">
-                {parsedData.sets} × {parsedData.reps}
-              </Badge>
-            )}
-            
-            {parsedData.progressiveWeights && parsedData.progressiveWeights.length > 0 ? (
-              <Badge variant="weight">
-                {parsedData.progressiveWeights.join(' → ')}
-              </Badge>
-            ) : parsedData.weight ? (
-              <Badge variant="weight">
-                {parsedData.weight}
-              </Badge>
-            ) : null}
-            
-            {parsedData.time && (
-              <Badge variant="time">
-                {parsedData.time}
-              </Badge>
-            )}
-            
-            {parsedData.distance && (
-              <Badge variant="time">
-                {parsedData.distance}
-              </Badge>
-            )}
-            
-            {parsedData.restPeriod && (
-              <Badge variant="secondary">
-                Rest: {parsedData.restPeriod}
-              </Badge>
-            )}
-          </div>
-          
-          <div className="text-xs text-muted-foreground font-mono">
-            Input: "{exercise.originalInput}"
+            {/* Timestamp in preview mode */}
+            <div className="ml-3 text-right">
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                {formatTime(exercise.timestamp)}
+              </p>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -135,40 +157,43 @@ export function WorkoutSession({ exercises, blocks }: WorkoutSessionProps) {
     if (!block) return null;
 
     return (
-      <Card key={blockId} className="border-2 border-primary/20">
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center justify-between text-lg">
-            <div className="flex items-center gap-2">
+      <Card key={blockId} className="overflow-hidden">
+        {/* Header */}
+        <div className="p-4 pb-3">
+          <div className="flex items-start justify-between">
+            <div className="flex items-center gap-3 flex-1 min-w-0">
               {getBlockIcon(block.type)}
-              {block.name}
+              <div className="flex-1 min-w-0">
+                <h3 className="font-semibold text-lg truncate">{block.name}</h3>
+                <div className="flex flex-wrap gap-2 mt-1">
+                  <Badge variant="outline">{block.type}</Badge>
+                  {block.rounds && (
+                    <Badge variant="secondary">{block.rounds} rounds</Badge>
+                  )}
+                  {block.restBetweenExercises && (
+                    <Badge variant="outline" className="text-xs flex items-center gap-1">
+                      <Timer className="h-3 w-3" />
+                      {block.restBetweenExercises}
+                    </Badge>
+                  )}
+                </div>
+              </div>
             </div>
-            <div className="flex gap-2">
-              <Badge variant="outline" className="text-xs">
-                {block.type}
-              </Badge>
-              {block.rounds && (
-                <Badge variant="secondary" className="text-xs">
-                  {block.rounds} rounds
-                </Badge>
-              )}
-              {block.restBetweenExercises && (
-                <Badge variant="outline" className="text-xs flex items-center gap-1">
-                  <Timer className="h-3 w-3" />
-                  {block.restBetweenExercises}
-                </Badge>
-              )}
-            </div>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {[...blockExercises].sort((a,b) => a.timestamp.getTime() - b.timestamp.getTime()).map(renderExerciseCard)}
-        </CardContent>
+          </div>
+        </div>
+        
+        {/* Content */}
+        <div className="px-4 pb-4">
+          <div className="space-y-3">
+            {[...blockExercises].sort((a,b) => a.timestamp.getTime() - b.timestamp.getTime()).map(renderExerciseCard)}
+          </div>
+        </div>
       </Card>
     );
   };
 
   return (
-    <div className="w-full max-w-2xl space-y-4">
+    <div className="w-full max-w-6xl space-y-6">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -197,7 +222,7 @@ export function WorkoutSession({ exercises, blocks }: WorkoutSessionProps) {
         </CardContent>
       </Card>
       
-      <div className="space-y-4">
+      <div className="space-y-6">
         {Object.entries(groupedExercises).map(([blockId, blockExercises]) =>
           renderBlockSection(blockId, blockExercises)
         )}
