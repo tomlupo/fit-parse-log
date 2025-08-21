@@ -153,7 +153,7 @@ export function ExerciseForm({ onAddExercise }: ExerciseFormProps) {
                   <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 </div>
               </PopoverTrigger>
-              <PopoverContent className="w-full p-0" align="start">
+              <PopoverContent className="z-50 w-full p-0 bg-popover" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
                 <Command>
                   <CommandList>
                     <CommandEmpty>No exercises found.</CommandEmpty>
