@@ -68,6 +68,9 @@ export function parseExerciseParameters(input: string): ParsedExerciseData {
   // Pattern for sets x reps @ single weight (e.g., "3x10 @ 135lbs", "4 x 8 @ 185")
   const strengthPattern = /(\d+)\s*x\s*(\d+)(?:\s*@\s*(\d+(?:\.\d+)?)\s*(lbs?|kg|pounds?))?/i;
   
+  // Pattern for sets x time (e.g., "3x30 minutes", "4 x 45 seconds", "5x1:30")
+  const setsTimePattern = /(\d+)\s*x\s*(?:(\d+(?:\.\d+)?)\s*(seconds?|secs?|minutes?|mins?|hours?|hrs?)|(\d+):(\d+))/i;
+  
   // Pattern for time (e.g., "30 seconds", "5 minutes", "1:30", "2.5 min")
   const timePattern = /(\d+(?:\.\d+)?)\s*(seconds?|secs?|minutes?|mins?|hours?|hrs?)|(\d+):(\d+)/i;
   
@@ -109,6 +112,20 @@ export function parseExerciseParameters(input: string): ParsedExerciseData {
         weight = `${match[3]} ${match[4]}`;
       }
       type = 'strength';
+    }
+  } else if (setsTimePattern.test(cleanInput)) {
+    const match = cleanInput.match(setsTimePattern);
+    if (match) {
+      sets = parseInt(match[1]);
+      
+      if (match[4] && match[5]) {
+        // Time in MM:SS format (e.g., "3x1:30")
+        time = `${match[4]}:${match[5]}`;
+      } else if (match[2] && match[3]) {
+        // Time with unit (e.g., "3x30 minutes")
+        time = `${match[2]} ${match[3]}`;
+      }
+      type = 'time';
     }
   } else if (timePattern.test(cleanInput)) {
     const match = cleanInput.match(timePattern);
