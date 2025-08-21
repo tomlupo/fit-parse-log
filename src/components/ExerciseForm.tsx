@@ -22,7 +22,9 @@ export function ExerciseForm({ onAddExercise }: ExerciseFormProps) {
 
   const handleExerciseNameChange = (value: string) => {
     setExerciseName(value);
-    setSuggestions(searchExercises(value));
+    const newSuggestions = searchExercises(value);
+    setSuggestions(newSuggestions);
+    setOpen(newSuggestions.length > 0 && value.length > 0);
     updatePreview(value, exerciseParams);
   };
 
@@ -142,12 +144,9 @@ export function ExerciseForm({ onAddExercise }: ExerciseFormProps) {
                   <Input
                     placeholder="Exercise name (e.g., Bench Press, Running, Squats)"
                     value={exerciseName}
-                    onChange={(e) => {
-                      handleExerciseNameChange(e.target.value);
-                      setOpen(true);
-                    }}
+                    onChange={(e) => handleExerciseNameChange(e.target.value)}
                     onFocus={() => {
-                      if (suggestions.length > 0) setOpen(true);
+                      if (suggestions.length > 0 && exerciseName.length > 0) setOpen(true);
                     }}
                     className="text-lg pr-10"
                   />
